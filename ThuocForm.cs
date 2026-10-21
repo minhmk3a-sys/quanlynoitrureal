@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Windows.Forms;
 
@@ -7,7 +8,7 @@ namespace QuanLyNoiTru
     /// <summary>
     /// Form quản lý danh mục Thuốc và Kho dược:
     /// - Quản lý thông tin: Mã thuốc, Tên thuốc, Số lượng tồn kho, Đơn giá và Tỷ lệ Bảo hiểm Y tế (% BHYT) thanh toán.
-    /// - Hỗ trợ các thao tác Thêm, Sửa, Xóa và Tìm kiếm thuốc.
+    /// - Hỗ trợ các thao tác Thêm, Sửa, Xóa và Tìm kiếm thuốc nhiều điều kiện độc lập (Mã thuốc, Tên thuốc).
     /// - Kết nối trực tiếp với chức năng kê đơn nội trú (kê đơn sẽ tự động trừ kho, hủy đơn sẽ hoàn lại kho).
     /// </summary>
     public partial class ThuocForm : BaseForm
@@ -23,23 +24,61 @@ namespace QuanLyNoiTru
             // Khi click chọn dòng thuốc trên lưới -> hiển thị chi tiết lên các ô nhập
             dgv.SelectionChanged += (s, e) => FillInputs();
 
-            // Tìm kiếm tức thời khi nhập ký tự vào ô tìm kiếm
-            txtTim.TextChanged += (s, e) => LoadData();
+            // Nhấn phím Enter trong ô tìm kiếm để thực hiện tìm kiếm
+            KeyEventHandler onEnter = (s, e) => { if (e.KeyCode == Keys.Enter) LoadData(); };
+            txtTimMa.KeyDown += onEnter;
+            txtTimTen.KeyDown += onEnter;
         }
 
         /// <summary>
-        /// Tải danh sách thuốc từ bảng THUOC theo từ khóa tìm kiếm (theo mã hoặc tên thuốc).
+        /// Nút [🔍 Tìm kiếm]: Thực hiện lọc danh sách thuốc theo điều kiện đã nhập.
+        /// </summary>
+        void btnTimKiem_Click(object s, EventArgs e)
+        {
+            LoadData();
+        }
+
+        /// <summary>
+        /// Nút [🔄 Làm mới] ở thanh tìm kiếm: Xóa trắng các ô tìm kiếm và nạp lại toàn bộ danh mục thuốc.
+        /// </summary>
+        void btnLamMoiTim_Click(object s, EventArgs e)
+        {
+            txtTimMa.Text = "";
+            txtTimTen.Text = "";
+            LoadData();
+        }
+
+        /// <summary>
+        /// Tải danh sách thuốc từ bảng THUOC theo nhiều điều kiện kết hợp (Mã thuốc và Tên thuốc).
         /// </summary>
         void LoadData()
         {
-            dgv.DataSource = DatabaseHelper.GetData(
-                @"SELECT MaThuoc AS [Mã thuốc], TenThuoc AS [Tên thuốc],
-                         SoLuongTon AS [Tồn kho], DonGia AS [Đơn giá],
-                         PT_BaoHiem AS [% BH]
-                  FROM THUOC
-                  WHERE MaThuoc LIKE @k OR TenThuoc LIKE @k
-                  ORDER BY MaThuoc",
-                DatabaseHelper.Param("@k", "%" + txtTim.Text.Trim() + "%"));
+            string sql = @"
+                SELECT MaThuoc AS [Mã thuốc], TenThuoc AS [Tên thuốc],
+                       SoLuongTon AS [Tồn kho], DonGia AS [Đơn giá],
+                       PT_BaoHiem AS [% BH]
+                FROM THUOC
+                WHERE 1=1 ";
+
+            var ps = new List<SqlParameter>();
+
+            string ma = txtTimMa.Text.Trim();
+            if (!string.IsNullOrEmpty(ma))
+            {
+                sql += " AND MaThuoc LIKE @timMa ";
+                ps.Add(DatabaseHelper.Param("@timMa", "%" + ma + "%"));
+            }
+
+            string ten = txtTimTen.Text.Trim();
+            if (!string.IsNullOrEmpty(ten))
+            {
+                sql += " AND TenThuoc LIKE @timTen ";
+                ps.Add(DatabaseHelper.Param("@timTen", "%" + ten + "%"));
+            }
+
+            sql += " ORDER BY MaThuoc";
+
+            dgv.DataSource = DatabaseHelper.GetData(sql, ps.ToArray());
             FormatColumn(dgv, "Đơn giá", "N0");
         }
 
@@ -70,7 +109,8 @@ namespace QuanLyNoiTru
         /// </summary>
         void Reset()
         {
-            txtTim.Text = "";
+            txtTimMa.Text = "";
+            txtTimTen.Text = "";
             LoadData();
             dgv.CurrentCell = null;
             ClearInputs();

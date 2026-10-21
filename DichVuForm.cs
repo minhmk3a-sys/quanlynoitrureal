@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Windows.Forms;
 
@@ -7,7 +8,7 @@ namespace QuanLyNoiTru
     /// <summary>
     /// Form quản lý danh mục dịch vụ y tế (chẩn đoán hình ảnh, siêu âm, xét nghiệm, phẫu thuật, ...):
     /// - Quản lý thông tin: Mã dịch vụ, Tên dịch vụ, Đơn giá gốc, Phần trăm Bảo hiểm Y tế (% BHYT) chi trả, và Ghi chú.
-    /// - Hỗ trợ đầy đủ chức năng Thêm mới, Sửa thông tin, Xóa và Tìm kiếm tức thời.
+    /// - Hỗ trợ đầy đủ chức năng Thêm mới, Sửa thông tin, Xóa và Tìm kiếm nhiều tiêu chí (Mã DV, Tên DV).
     /// </summary>
     public partial class DichVuForm : BaseForm
     {
@@ -22,23 +23,59 @@ namespace QuanLyNoiTru
             // Khi click chọn dòng trên lưới, nạp dữ liệu chi tiết lên form nhập liệu
             dgv.SelectionChanged += (s, e) => FillInputs();
 
-            // Tìm kiếm tức thời khi gõ từ khóa vào ô tìm kiếm
-            txtTim.TextChanged += (s, e) => LoadData();
+            // Nhấn Enter trong ô tìm kiếm để thực hiện tìm kiếm
+            KeyEventHandler onEnter = (s, e) => { if (e.KeyCode == Keys.Enter) LoadData(); };
+            txtTimMa.KeyDown += onEnter;
+            txtTimTen.KeyDown += onEnter;
         }
 
         /// <summary>
-        /// Nạp danh sách dịch vụ từ CSDL lọc theo từ khóa tìm kiếm (theo mã hoặc tên dịch vụ).
+        /// Nút [🔍 Tìm kiếm]: Thực hiện lọc danh sách dịch vụ theo các tiêu chí đã nhập.
+        /// </summary>
+        void btnTimKiem_Click(object s, EventArgs e)
+        {
+            LoadData();
+        }
+
+        /// <summary>
+        /// Nút [🔄 Làm mới] ở thanh tìm kiếm: Xóa trắng các ô tìm kiếm và nạp lại toàn bộ danh mục dịch vụ.
+        /// </summary>
+        void btnLamMoiTim_Click(object s, EventArgs e)
+        {
+            txtTimMa.Text = "";
+            txtTimTen.Text = "";
+            LoadData();
+        }
+
+        /// <summary>
+        /// Nạp danh sách dịch vụ từ CSDL lọc theo nhiều tiêu chí kết hợp (Mã dịch vụ, Tên dịch vụ).
         /// </summary>
         void LoadData()
         {
-            dgv.DataSource = DatabaseHelper.GetData(
-                @"SELECT MaDV AS [Mã DV], TenDV AS [Tên dịch vụ],
-                         DonGia AS [Đơn giá], PT_BaoHiem AS [% BH],
-                         GhiChu AS [Ghi chú]
-                  FROM DICHVU
-                  WHERE MaDV LIKE @k OR TenDV LIKE @k
-                  ORDER BY MaDV",
-                DatabaseHelper.Param("@k", "%" + txtTim.Text.Trim() + "%"));
+            string sql = @"
+                SELECT MaDV AS [Mã DV], TenDV AS [Tên dịch vụ],
+                       DonGia AS [Đơn giá], PT_BaoHiem AS [% BH],
+                       GhiChu AS [Ghi chú]
+                FROM DICHVU
+                WHERE 1=1 ";
+
+            var ps = new List<SqlParameter>();
+
+            if (!string.IsNullOrWhiteSpace(txtTimMa.Text))
+            {
+                sql += " AND MaDV LIKE @ma ";
+                ps.Add(DatabaseHelper.Param("@ma", "%" + txtTimMa.Text.Trim() + "%"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(txtTimTen.Text))
+            {
+                sql += " AND TenDV LIKE @ten ";
+                ps.Add(DatabaseHelper.Param("@ten", "%" + txtTimTen.Text.Trim() + "%"));
+            }
+
+            sql += " ORDER BY MaDV ";
+
+            dgv.DataSource = DatabaseHelper.GetData(sql, ps.ToArray());
             FormatColumn(dgv, "Đơn giá", "N0");
         }
 
@@ -69,7 +106,8 @@ namespace QuanLyNoiTru
         /// </summary>
         void Reset()
         {
-            txtTim.Text = "";
+            txtTimMa.Text = "";
+            txtTimTen.Text = "";
             LoadData();
             dgv.CurrentCell = null;
             ClearInputs();

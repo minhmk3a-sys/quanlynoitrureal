@@ -33,8 +33,13 @@ namespace QuanLyNoiTru
             this.btnSua = new System.Windows.Forms.Button();
             this.btnXoa = new System.Windows.Forms.Button();
             this.btnLamMoi = new System.Windows.Forms.Button();
-            this.lblTim = new System.Windows.Forms.Label();
-            this.txtTim = new System.Windows.Forms.TextBox();
+            this.lblTieuDeTim = new System.Windows.Forms.Label();
+            this.lblTimMa = new System.Windows.Forms.Label();
+            this.txtTimMa = new System.Windows.Forms.TextBox();
+            this.lblTimTen = new System.Windows.Forms.Label();
+            this.txtTimTen = new System.Windows.Forms.TextBox();
+            this.btnTimKiem = new System.Windows.Forms.Button();
+            this.btnLamMoiTim = new System.Windows.Forms.Button();
 
             ((System.ComponentModel.ISupportInitialize)(this.dgv)).BeginInit();
             this.pnlTop.SuspendLayout();
@@ -60,7 +65,7 @@ namespace QuanLyNoiTru
             this.pnlTop.BackColor = System.Drawing.Color.FromArgb(245, 248, 252);
             this.pnlTop.Dock = System.Windows.Forms.DockStyle.Top;
             this.pnlTop.Location = new System.Drawing.Point(0, 0);
-            this.pnlTop.Size = new System.Drawing.Size(900, 175);
+            this.pnlTop.Size = new System.Drawing.Size(900, 250);
             this.pnlTop.Name = "pnlTop";
             this.pnlTop.Controls.Add(this.lblMa);
             this.pnlTop.Controls.Add(this.txtMa);
@@ -76,8 +81,13 @@ namespace QuanLyNoiTru
             this.pnlTop.Controls.Add(this.btnSua);
             this.pnlTop.Controls.Add(this.btnXoa);
             this.pnlTop.Controls.Add(this.btnLamMoi);
-            this.pnlTop.Controls.Add(this.lblTim);
-            this.pnlTop.Controls.Add(this.txtTim);
+            this.pnlTop.Controls.Add(this.lblTieuDeTim);
+            this.pnlTop.Controls.Add(this.lblTimMa);
+            this.pnlTop.Controls.Add(this.txtTimMa);
+            this.pnlTop.Controls.Add(this.lblTimTen);
+            this.pnlTop.Controls.Add(this.txtTimTen);
+            this.pnlTop.Controls.Add(this.btnTimKiem);
+            this.pnlTop.Controls.Add(this.btnLamMoiTim);
 
             // lblMa
             this.lblMa.Location = new System.Drawing.Point(10, 16);
@@ -169,14 +179,79 @@ namespace QuanLyNoiTru
             this.btnLamMoi.UseVisualStyleBackColor = false;
             this.btnLamMoi.Click += new System.EventHandler(this.btnLamMoi_Click);
 
-            // lblTim
-            this.lblTim.Location = new System.Drawing.Point(430, 141);
-            this.lblTim.Size = new System.Drawing.Size(80, 24);
-            this.lblTim.Text = "Tìm kiếm";
-
-            // txtTim
-            this.txtTim.Location = new System.Drawing.Point(515, 135);
-            this.txtTim.Size = new System.Drawing.Size(250, 27);
+            // 
+            // lblTieuDeTim
+            // 
+            this.lblTieuDeTim.AutoSize = false;
+            this.lblTieuDeTim.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            this.lblTieuDeTim.ForeColor = System.Drawing.Color.FromArgb(30, 58, 95);
+            this.lblTieuDeTim.Location = new System.Drawing.Point(10, 178);
+            this.lblTieuDeTim.Size = new System.Drawing.Size(260, 24);
+            this.lblTieuDeTim.Text = "🔍 TÌM KIẾM THUỐC";
+            this.lblTieuDeTim.Name = "lblTieuDeTim";
+            this.lblTieuDeTim.TabIndex = 17;
+            // 
+            // lblTimMa
+            // 
+            this.lblTimMa.AutoSize = false;
+            this.lblTimMa.Location = new System.Drawing.Point(10, 212);
+            this.lblTimMa.Size = new System.Drawing.Size(70, 24);
+            this.lblTimMa.Text = "Mã thuốc";
+            this.lblTimMa.Name = "lblTimMa";
+            this.lblTimMa.TabIndex = 18;
+            // 
+            // txtTimMa
+            // 
+            this.txtTimMa.Location = new System.Drawing.Point(85, 207);
+            this.txtTimMa.Size = new System.Drawing.Size(120, 27);
+            this.txtTimMa.Name = "txtTimMa";
+            this.txtTimMa.TabIndex = 19;
+            // 
+            // lblTimTen
+            // 
+            this.lblTimTen.AutoSize = false;
+            this.lblTimTen.Location = new System.Drawing.Point(220, 212);
+            this.lblTimTen.Size = new System.Drawing.Size(70, 24);
+            this.lblTimTen.Text = "Tên thuốc";
+            this.lblTimTen.Name = "lblTimTen";
+            this.lblTimTen.TabIndex = 20;
+            // 
+            // txtTimTen
+            // 
+            this.txtTimTen.Location = new System.Drawing.Point(295, 207);
+            this.txtTimTen.Size = new System.Drawing.Size(220, 27);
+            this.txtTimTen.Name = "txtTimTen";
+            this.txtTimTen.TabIndex = 21;
+            // 
+            // btnTimKiem
+            // 
+            this.btnTimKiem.BackColor = System.Drawing.Color.FromArgb(52, 101, 164);
+            this.btnTimKiem.FlatAppearance.BorderSize = 0;
+            this.btnTimKiem.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnTimKiem.Font = new System.Drawing.Font("Segoe UI", 9.5F, System.Drawing.FontStyle.Bold);
+            this.btnTimKiem.ForeColor = System.Drawing.Color.White;
+            this.btnTimKiem.Location = new System.Drawing.Point(530, 205);
+            this.btnTimKiem.Size = new System.Drawing.Size(115, 31);
+            this.btnTimKiem.Text = "🔍 Tìm kiếm";
+            this.btnTimKiem.UseVisualStyleBackColor = false;
+            this.btnTimKiem.Click += new System.EventHandler(this.btnTimKiem_Click);
+            this.btnTimKiem.Name = "btnTimKiem";
+            this.btnTimKiem.TabIndex = 22;
+            // 
+            // btnLamMoiTim
+            // 
+            this.btnLamMoiTim.BackColor = System.Drawing.Color.FromArgb(238, 242, 248);
+            this.btnLamMoiTim.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(180, 200, 225);
+            this.btnLamMoiTim.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnLamMoiTim.Font = new System.Drawing.Font("Segoe UI", 9.5F);
+            this.btnLamMoiTim.ForeColor = System.Drawing.Color.FromArgb(30, 58, 95);
+            this.btnLamMoiTim.Location = new System.Drawing.Point(655, 205);
+            this.btnLamMoiTim.Size = new System.Drawing.Size(105, 31);
+            this.btnLamMoiTim.Text = "🔄 Làm mới";
+            this.btnLamMoiTim.UseVisualStyleBackColor = false;
+            this.btnLamMoiTim.Click += new System.EventHandler(this.btnLamMoiTim_Click);
+            this.btnLamMoiTim.Name = "btnLamMoiTim";
+            this.btnLamMoiTim.TabIndex = 23;
 
             // ThuocForm
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.None;
@@ -211,7 +286,12 @@ namespace QuanLyNoiTru
         private System.Windows.Forms.Button btnSua;
         private System.Windows.Forms.Button btnXoa;
         private System.Windows.Forms.Button btnLamMoi;
-        private System.Windows.Forms.Label lblTim;
-        private System.Windows.Forms.TextBox txtTim;
+        private System.Windows.Forms.Label lblTieuDeTim;
+        private System.Windows.Forms.Label lblTimMa;
+        private System.Windows.Forms.TextBox txtTimMa;
+        private System.Windows.Forms.Label lblTimTen;
+        private System.Windows.Forms.TextBox txtTimTen;
+        private System.Windows.Forms.Button btnTimKiem;
+        private System.Windows.Forms.Button btnLamMoiTim;
     }
 }

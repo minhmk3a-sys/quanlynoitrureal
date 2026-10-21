@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Windows.Forms;
 
@@ -17,19 +18,50 @@ namespace QuanLyNoiTru
             InitializeComponent(); // Dựng giao diện
 
             // Đổ danh sách Khoa đang hoạt động (TrangThai = 1) vào ComboBox để người dùng gán phòng vào khoa
-            FillCombo(cmbKhoa, DatabaseHelper.GetData("SELECT MaKhoa, TenKhoa FROM KHOA WHERE TrangThai=1 ORDER BY MaKhoa"), "TenKhoa", "MaKhoa");
+            var dtKhoa = DatabaseHelper.GetData("SELECT MaKhoa, TenKhoa FROM KHOA WHERE TrangThai=1 ORDER BY MaKhoa");
+            FillCombo(cmbKhoa, dtKhoa, "TenKhoa", "MaKhoa");
+
+            // Đổ danh sách Khoa vào ComboBox tìm kiếm kèm '-- Tất cả --'
+            var dtTimKhoa = dtKhoa.Copy();
+            var rAll = dtTimKhoa.NewRow();
+            rAll["MaKhoa"] = "";
+            rAll["TenKhoa"] = "-- Tất cả --";
+            dtTimKhoa.Rows.InsertAt(rAll, 0);
+            FillCombo(cmbTimKhoa, dtTimKhoa, "TenKhoa", "MaKhoa");
 
             LoadData(); // Nạp dữ liệu phòng lên bảng DataGridView
 
             // Gắn sự kiện:
             // - Bấm chọn dòng trên bảng -> Nạp dữ liệu lên ô nhập
             dgv.SelectionChanged += (s, e) => FillInputs();
-            // - Gõ tìm kiếm -> Lọc phòng theo tên phòng, mã phòng hoặc tên khoa
-            txtTim.TextChanged += (s, e) => LoadData();
+
+            // Nhấn phím Enter trong các ô tìm kiếm để thực hiện tìm kiếm
+            KeyEventHandler onEnter = (s, e) => { if (e.KeyCode == Keys.Enter) LoadData(); };
+            txtTimMa.KeyDown += onEnter;
+            txtTimTen.KeyDown += onEnter;
         }
 
         /// <summary>
-        /// Nạp danh sách phòng từ bảng PHONG kết hợp với bảng KHOA (LEFT JOIN) để hiển thị tên khoa.
+        /// Nút [🔍 Tìm kiếm]: Thực hiện lọc danh sách phòng theo điều kiện đã nhập.
+        /// </summary>
+        void btnTimKiem_Click(object s, EventArgs e)
+        {
+            LoadData();
+        }
+
+        /// <summary>
+        /// Nút [🔄 Làm mới] ở thanh tìm kiếm: Xóa trắng các ô tìm kiếm và nạp lại toàn bộ danh sách phòng.
+        /// </summary>
+        void btnLamMoiTim_Click(object s, EventArgs e)
+        {
+            txtTimMa.Text = "";
+            txtTimTen.Text = "";
+            if (cmbTimKhoa.Items.Count > 0) cmbTimKhoa.SelectedIndex = 0;
+            LoadData();
+        }
+
+        /// <summary>
+        /// Nạp danh sách phòng từ bảng PHONG theo nhiều điều kiện kết hợp (Mã phòng, Tên phòng, Khoa).
         /// </summary>
         void LoadData()
         {
@@ -38,10 +70,30 @@ namespace QuanLyNoiTru
                        p.MaKhoa AS [Mã khoa], k.TenKhoa AS [Khoa]
                 FROM PHONG p 
                 LEFT JOIN KHOA k ON k.MaKhoa = p.MaKhoa
-                WHERE p.MaPhong LIKE @k OR p.TenPhong LIKE @k OR k.TenKhoa LIKE @k
-                ORDER BY p.MaPhong";
+                WHERE 1=1 ";
 
-            dgv.DataSource = DatabaseHelper.GetData(sql, DatabaseHelper.Param("@k", "%" + txtTim.Text.Trim() + "%"));
+            var ps = new List<SqlParameter>();
+            string ma = txtTimMa.Text.Trim();
+            if (!string.IsNullOrEmpty(ma))
+            {
+                sql += " AND p.MaPhong LIKE @timMa ";
+                ps.Add(DatabaseHelper.Param("@timMa", "%" + ma + "%"));
+            }
+            string ten = txtTimTen.Text.Trim();
+            if (!string.IsNullOrEmpty(ten))
+            {
+                sql += " AND p.TenPhong LIKE @timTen ";
+                ps.Add(DatabaseHelper.Param("@timTen", "%" + ten + "%"));
+            }
+            string maKhoa = GetValue(cmbTimKhoa);
+            if (!string.IsNullOrEmpty(maKhoa))
+            {
+                sql += " AND p.MaKhoa = @timKhoa ";
+                ps.Add(DatabaseHelper.Param("@timKhoa", maKhoa));
+            }
+            sql += " ORDER BY p.MaPhong";
+
+            dgv.DataSource = DatabaseHelper.GetData(sql, ps.ToArray());
         }
 
         /// <summary>
@@ -72,7 +124,9 @@ namespace QuanLyNoiTru
         /// </summary>
         void Reset()
         {
-            txtTim.Text = "";
+            txtTimMa.Text = "";
+            txtTimTen.Text = "";
+            if (cmbTimKhoa.Items.Count > 0) cmbTimKhoa.SelectedIndex = 0;
             LoadData();
             dgv.CurrentCell = null;
             ClearInputs();

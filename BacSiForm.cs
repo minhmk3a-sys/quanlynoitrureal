@@ -20,15 +20,48 @@ namespace QuanLyNoiTru
             cmbGt.SelectedIndex = 0; // Mặc định giới tính "Nam"
 
             // Đổ danh sách Khoa từ CSDL vào ComboBox khoa để người dùng chọn khi thêm/sửa bác sĩ
-            FillCombo(cmbKhoa, DatabaseHelper.GetData("SELECT MaKhoa, TenKhoa FROM KHOA ORDER BY MaKhoa"), "TenKhoa", "MaKhoa");
+            var dtKhoa = DatabaseHelper.GetData("SELECT MaKhoa, TenKhoa FROM KHOA ORDER BY MaKhoa");
+            FillCombo(cmbKhoa, dtKhoa, "TenKhoa", "MaKhoa");
+
+            // Đổ danh sách Khoa vào ComboBox tìm kiếm (kèm tùy chọn '-- Tất cả --' ở đầu)
+            var dtTimKhoa = dtKhoa.Copy();
+            var rAll = dtTimKhoa.NewRow();
+            rAll["MaKhoa"] = "";
+            rAll["TenKhoa"] = "-- Tất cả --";
+            dtTimKhoa.Rows.InsertAt(rAll, 0);
+            FillCombo(cmbTimKhoa, dtTimKhoa, "TenKhoa", "MaKhoa");
 
             LoadData(); // Nạp danh sách bác sĩ lên bảng DataGridView
 
             // Gắn sự kiện tương tác người dùng:
             // - Khi chọn một bác sĩ trên bảng -> Nạp thông tin lên các ô nhập
             dgv.SelectionChanged += (s, e) => FillInputs();
-            // - Khi gõ từ khóa tìm kiếm -> Lọc dữ liệu ngay lập tức
-            txtTim.TextChanged += (s, e) => LoadData();
+
+            // Nhấn phím Enter trong các ô tìm kiếm để thực hiện tìm kiếm
+            KeyEventHandler onEnter = (s, e) => { if (e.KeyCode == Keys.Enter) LoadData(); };
+            txtTimMa.KeyDown += onEnter;
+            txtTimTen.KeyDown += onEnter;
+            txtTimSdt.KeyDown += onEnter;
+        }
+
+        /// <summary>
+        /// Nút [🔍 Tìm kiếm]: Thực hiện lọc danh sách theo các điều kiện người dùng đã nhập.
+        /// </summary>
+        void btnTimKiem_Click(object s, EventArgs e)
+        {
+            LoadData();
+        }
+
+        /// <summary>
+        /// Nút [🔄 Làm mới] ở thanh tìm kiếm: Xóa trắng các ô điều kiện tìm kiếm và nạp lại toàn bộ danh sách.
+        /// </summary>
+        void btnLamMoiTim_Click(object s, EventArgs e)
+        {
+            txtTimMa.Text = "";
+            txtTimTen.Text = "";
+            if (cmbTimKhoa.Items.Count > 0) cmbTimKhoa.SelectedIndex = 0;
+            txtTimSdt.Text = "";
+            LoadData();
         }
 
         /// <summary>
@@ -40,8 +73,7 @@ namespace QuanLyNoiTru
         }
 
         /// <summary>
-        /// Tải dữ liệu từ bảng BACSI kết hợp với bảng KHOA (LEFT JOIN) để hiển thị tên khoa rõ ràng.
-        /// Tìm kiếm theo: Mã BS, Họ tên hoặc Chuyên khoa.
+        /// Tải dữ liệu từ bảng BACSI theo nhiều điều kiện tìm kiếm kết hợp (Mã BS, Họ tên, Khoa, SĐT).
         /// </summary>
         void LoadData()
         {
@@ -51,10 +83,45 @@ namespace QuanLyNoiTru
                        b.MaKhoa AS [Mã khoa], k.TenKhoa AS [Khoa], b.TrangThai AS [Đang làm việc]
                 FROM BACSI b 
                 LEFT JOIN KHOA k ON k.MaKhoa = b.MaKhoa
-                WHERE b.MaBS LIKE @k OR b.HoTen LIKE @k OR b.ChuyenKhoa LIKE @k
-                ORDER BY b.MaBS";
+                WHERE 1=1 ";
 
-            dgv.DataSource = DatabaseHelper.GetData(sql, DatabaseHelper.Param("@k", "%" + txtTim.Text.Trim() + "%"));
+            var ps = new List<SqlParameter>();
+
+            // 1. Tìm theo Mã BS
+            string ma = txtTimMa.Text.Trim();
+            if (!string.IsNullOrEmpty(ma))
+            {
+                sql += " AND b.MaBS LIKE @timMa ";
+                ps.Add(DatabaseHelper.Param("@timMa", "%" + ma + "%"));
+            }
+
+            // 2. Tìm theo Họ và tên
+            string ten = txtTimTen.Text.Trim();
+            if (!string.IsNullOrEmpty(ten))
+            {
+                sql += " AND b.HoTen LIKE @timTen ";
+                ps.Add(DatabaseHelper.Param("@timTen", "%" + ten + "%"));
+            }
+
+            // 3. Lọc theo Khoa
+            string maKhoa = GetValue(cmbTimKhoa);
+            if (!string.IsNullOrEmpty(maKhoa))
+            {
+                sql += " AND b.MaKhoa = @timKhoa ";
+                ps.Add(DatabaseHelper.Param("@timKhoa", maKhoa));
+            }
+
+            // 4. Tìm theo Số điện thoại
+            string sdt = txtTimSdt.Text.Trim();
+            if (!string.IsNullOrEmpty(sdt))
+            {
+                sql += " AND b.SoDienThoai LIKE @timSdt ";
+                ps.Add(DatabaseHelper.Param("@timSdt", "%" + sdt + "%"));
+            }
+
+            sql += " ORDER BY b.MaBS";
+
+            dgv.DataSource = DatabaseHelper.GetData(sql, ps.ToArray());
             FormatColumn(dgv, "Ngày sinh", "dd/MM/yyyy");
         }
 
@@ -95,11 +162,14 @@ namespace QuanLyNoiTru
         }
 
         /// <summary>
-        /// Đặt lại form về trạng thái ban đầu.
+        /// Đặt lại form về trạng thái ban đầu: Xóa ô tìm kiếm, nạp lại bảng, xóa ô nhập liệu.
         /// </summary>
         void Reset()
         {
-            txtTim.Text = "";
+            txtTimMa.Text = "";
+            txtTimTen.Text = "";
+            if (cmbTimKhoa.Items.Count > 0) cmbTimKhoa.SelectedIndex = 0;
+            txtTimSdt.Text = "";
             LoadData();
             dgv.CurrentCell = null;
             ClearInputs();

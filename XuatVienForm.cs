@@ -58,8 +58,30 @@ namespace QuanLyNoiTru
 
             LoadDanhSach();
             dgv.SelectionChanged += (s, e) => ChonDong();
-            txtTim.TextChanged += (s, e) => LoadDanhSach();
             dtpNgayRa.ValueChanged += (s, e) => TinhChiPhi();
+
+            // Nhấn Enter trong ô tìm kiếm để thực hiện tìm kiếm
+            KeyEventHandler onEnter = (s, e) => { if (e.KeyCode == Keys.Enter) LoadDanhSach(); };
+            txtTimMa.KeyDown += onEnter;
+            txtTimBN.KeyDown += onEnter;
+        }
+
+        /// <summary>
+        /// Nút [🔍 Tìm kiếm]: Thực hiện lọc danh sách theo các điều kiện đã nhập.
+        /// </summary>
+        void btnTimKiem_Click(object sender, EventArgs e)
+        {
+            LoadDanhSach();
+        }
+
+        /// <summary>
+        /// Nút [🔄 Làm mới] ở thanh tìm kiếm: Xóa các ô tìm kiếm và nạp lại toàn bộ danh sách.
+        /// </summary>
+        void btnLamMoiTim_Click(object sender, EventArgs e)
+        {
+            txtTimMa.Text = "";
+            txtTimBN.Text = "";
+            LoadDanhSach();
         }
 
         // ====================================================================
@@ -67,9 +89,9 @@ namespace QuanLyNoiTru
         // ====================================================================
 
         /// <summary>
-/// Tải danh sách bệnh nhân nhập viện cùng thông tin viện phí.
-/// </summary>
-void LoadDanhSach()
+        /// Tải danh sách bệnh nhân nhập viện cùng thông tin viện phí theo các tiêu chí tìm kiếm kết hợp.
+        /// </summary>
+        void LoadDanhSach()
         {
             string sql = @"
                 SELECT nv.MaNhapVien AS [Mã NV], bn.MaBN AS [Mã BN], bn.HoTen AS [Bệnh nhân],
@@ -84,12 +106,27 @@ void LoadDanhSach()
                 LEFT JOIN PHONG p ON p.MaPhong = g.MaPhong
                 LEFT JOIN KHOA k ON k.MaKhoa = p.MaKhoa
                 LEFT JOIN VIENPHI vp ON vp.MaNhapVien = nv.MaNhapVien
-                WHERE (nv.MaNhapVien LIKE @k OR bn.HoTen LIKE @k OR bn.MaBN LIKE @k)
-                ORDER BY CASE WHEN nv.TrangThai = N'Đang điều trị' THEN 1 
-                              WHEN nv.TrangThai = N'Chờ thanh toán' THEN 2 ELSE 3 END,
-                         nv.NgayNhapVien DESC";
+                WHERE 1=1 ";
 
-            dgv.DataSource = DatabaseHelper.GetData(sql, DatabaseHelper.Param("@k", "%" + txtTim.Text.Trim() + "%"));
+            var ps = new List<SqlParameter>();
+
+            if (!string.IsNullOrWhiteSpace(txtTimMa.Text))
+            {
+                sql += " AND nv.MaNhapVien LIKE @maNV ";
+                ps.Add(DatabaseHelper.Param("@maNV", "%" + txtTimMa.Text.Trim() + "%"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(txtTimBN.Text))
+            {
+                sql += " AND (bn.HoTen LIKE @bn OR bn.MaBN LIKE @bn) ";
+                ps.Add(DatabaseHelper.Param("@bn", "%" + txtTimBN.Text.Trim() + "%"));
+            }
+
+            sql += @" ORDER BY CASE WHEN nv.TrangThai = N'Đang điều trị' THEN 1 
+                               WHEN nv.TrangThai = N'Chờ thanh toán' THEN 2 ELSE 3 END,
+                          nv.NgayNhapVien DESC";
+
+            dgv.DataSource = DatabaseHelper.GetData(sql, ps.ToArray());
             FormatColumn(dgv, "Ngày vào", "dd/MM/yyyy HH:mm");
             FormatColumn(dgv, "Ngày ra", "dd/MM/yyyy HH:mm");
             FormatColumn(dgv, "Tổng tiền", "N0");
@@ -457,10 +494,6 @@ void TinhChiPhi()
             }
         }
 
-        void btnLamMoi_Click(object sender, EventArgs e)
-        {
-            txtTim.Text = "";
-            LoadDanhSach();
-        }
+
     }
 }

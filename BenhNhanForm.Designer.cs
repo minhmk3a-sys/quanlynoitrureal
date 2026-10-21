@@ -1,4 +1,4 @@
-﻿namespace QuanLyNoiTru
+namespace QuanLyNoiTru
 {
     partial class BenhNhanForm
     {
@@ -48,9 +48,17 @@
             this.btnSua = new System.Windows.Forms.Button();
             this.btnXoa = new System.Windows.Forms.Button();
             this.btnLamMoi = new System.Windows.Forms.Button();
-            this.lblTim = new System.Windows.Forms.Label();
-            this.txtTim = new System.Windows.Forms.TextBox();
-            this.lblGoiYTim = new System.Windows.Forms.Label();
+            this.lblTieuDeTim = new System.Windows.Forms.Label();
+            this.lblTimMa = new System.Windows.Forms.Label();
+            this.txtTimMa = new System.Windows.Forms.TextBox();
+            this.lblTimTen = new System.Windows.Forms.Label();
+            this.txtTimTen = new System.Windows.Forms.TextBox();
+            this.lblTimGt = new System.Windows.Forms.Label();
+            this.cmbTimGt = new System.Windows.Forms.ComboBox();
+            this.lblTimSdt = new System.Windows.Forms.Label();
+            this.txtTimSdt = new System.Windows.Forms.TextBox();
+            this.btnTimKiem = new System.Windows.Forms.Button();
+            this.btnLamMoiTim = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.dgv)).BeginInit();
             this.pnlTop.SuspendLayout();
             this.SuspendLayout();
@@ -78,7 +86,7 @@
             this.pnlTop.BackColor = System.Drawing.Color.FromArgb(245, 248, 252);
             this.pnlTop.Dock = System.Windows.Forms.DockStyle.Top;
             this.pnlTop.Location = new System.Drawing.Point(0, 0);
-            this.pnlTop.Size = new System.Drawing.Size(1085, 250);
+            this.pnlTop.Size = new System.Drawing.Size(1085, 285);
             this.pnlTop.Name = "pnlTop";
             this.pnlTop.TabIndex = 1;
             this.pnlTop.Controls.Add(this.lblMa);
@@ -107,9 +115,17 @@
             this.pnlTop.Controls.Add(this.btnSua);
             this.pnlTop.Controls.Add(this.btnXoa);
             this.pnlTop.Controls.Add(this.btnLamMoi);
-            this.pnlTop.Controls.Add(this.lblTim);
-            this.pnlTop.Controls.Add(this.txtTim);
-            this.pnlTop.Controls.Add(this.lblGoiYTim);
+            this.pnlTop.Controls.Add(this.lblTieuDeTim);
+            this.pnlTop.Controls.Add(this.lblTimMa);
+            this.pnlTop.Controls.Add(this.txtTimMa);
+            this.pnlTop.Controls.Add(this.lblTimTen);
+            this.pnlTop.Controls.Add(this.txtTimTen);
+            this.pnlTop.Controls.Add(this.lblTimGt);
+            this.pnlTop.Controls.Add(this.cmbTimGt);
+            this.pnlTop.Controls.Add(this.lblTimSdt);
+            this.pnlTop.Controls.Add(this.txtTimSdt);
+            this.pnlTop.Controls.Add(this.btnTimKiem);
+            this.pnlTop.Controls.Add(this.btnLamMoiTim);
             // 
             // lblMa
             // 
@@ -349,30 +365,113 @@
             this.btnLamMoi.Name = "btnLamMoi";
             this.btnLamMoi.TabIndex = 27;
             // 
-            // lblTim
+            // lblTieuDeTim
             // 
-            this.lblTim.AutoSize = false;
-            this.lblTim.Location = new System.Drawing.Point(10, 211);
-            this.lblTim.Size = new System.Drawing.Size(120, 24);
-            this.lblTim.Text = "Tìm kiếm";
-            this.lblTim.Name = "lblTim";
-            this.lblTim.TabIndex = 28;
+            this.lblTieuDeTim.AutoSize = false;
+            this.lblTieuDeTim.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            this.lblTieuDeTim.ForeColor = System.Drawing.Color.FromArgb(30, 58, 95);
+            this.lblTieuDeTim.Location = new System.Drawing.Point(10, 208);
+            this.lblTieuDeTim.Size = new System.Drawing.Size(260, 24);
+            this.lblTieuDeTim.Text = "🔍 TÌM KIẾM BỆNH NHÂN";
+            this.lblTieuDeTim.Name = "lblTieuDeTim";
+            this.lblTieuDeTim.TabIndex = 28;
             // 
-            // txtTim
+            // lblTimMa
             // 
-            this.txtTim.Location = new System.Drawing.Point(135, 205);
-            this.txtTim.Size = new System.Drawing.Size(300, 27);
-            this.txtTim.Name = "txtTim";
-            this.txtTim.TabIndex = 29;
+            this.lblTimMa.AutoSize = false;
+            this.lblTimMa.Location = new System.Drawing.Point(10, 243);
+            this.lblTimMa.Size = new System.Drawing.Size(55, 24);
+            this.lblTimMa.Text = "Mã BN";
+            this.lblTimMa.Name = "lblTimMa";
+            this.lblTimMa.TabIndex = 29;
             // 
-            // lblGoiYTim
+            // txtTimMa
             // 
-            this.lblGoiYTim.AutoSize = false;
-            this.lblGoiYTim.Location = new System.Drawing.Point(445, 211);
-            this.lblGoiYTim.Size = new System.Drawing.Size(200, 24);
-            this.lblGoiYTim.Text = "(mã, họ tên, CCCD, SĐT)";
-            this.lblGoiYTim.Name = "lblGoiYTim";
-            this.lblGoiYTim.TabIndex = 30;
+            this.txtTimMa.Location = new System.Drawing.Point(70, 238);
+            this.txtTimMa.Size = new System.Drawing.Size(90, 27);
+            this.txtTimMa.Name = "txtTimMa";
+            this.txtTimMa.TabIndex = 30;
+            // 
+            // lblTimTen
+            // 
+            this.lblTimTen.AutoSize = false;
+            this.lblTimTen.Location = new System.Drawing.Point(170, 243);
+            this.lblTimTen.Size = new System.Drawing.Size(70, 24);
+            this.lblTimTen.Text = "Họ và tên";
+            this.lblTimTen.Name = "lblTimTen";
+            this.lblTimTen.TabIndex = 31;
+            // 
+            // txtTimTen
+            // 
+            this.txtTimTen.Location = new System.Drawing.Point(245, 238);
+            this.txtTimTen.Size = new System.Drawing.Size(140, 27);
+            this.txtTimTen.Name = "txtTimTen";
+            this.txtTimTen.TabIndex = 32;
+            // 
+            // lblTimGt
+            // 
+            this.lblTimGt.AutoSize = false;
+            this.lblTimGt.Location = new System.Drawing.Point(395, 243);
+            this.lblTimGt.Size = new System.Drawing.Size(65, 24);
+            this.lblTimGt.Text = "Giới tính";
+            this.lblTimGt.Name = "lblTimGt";
+            this.lblTimGt.TabIndex = 33;
+            // 
+            // cmbTimGt
+            // 
+            this.cmbTimGt.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cmbTimGt.FormattingEnabled = true;
+            this.cmbTimGt.Items.AddRange(new object[] { "-- Tất cả --", "Nam", "Nữ" });
+            this.cmbTimGt.Location = new System.Drawing.Point(465, 237);
+            this.cmbTimGt.Size = new System.Drawing.Size(105, 29);
+            this.cmbTimGt.Name = "cmbTimGt";
+            this.cmbTimGt.TabIndex = 34;
+            // 
+            // lblTimSdt
+            // 
+            this.lblTimSdt.AutoSize = false;
+            this.lblTimSdt.Location = new System.Drawing.Point(580, 243);
+            this.lblTimSdt.Size = new System.Drawing.Size(85, 24);
+            this.lblTimSdt.Text = "Số điện thoại";
+            this.lblTimSdt.Name = "lblTimSdt";
+            this.lblTimSdt.TabIndex = 35;
+            // 
+            // txtTimSdt
+            // 
+            this.txtTimSdt.Location = new System.Drawing.Point(670, 238);
+            this.txtTimSdt.Size = new System.Drawing.Size(125, 27);
+            this.txtTimSdt.Name = "txtTimSdt";
+            this.txtTimSdt.TabIndex = 36;
+            // 
+            // btnTimKiem
+            // 
+            this.btnTimKiem.BackColor = System.Drawing.Color.FromArgb(52, 101, 164);
+            this.btnTimKiem.FlatAppearance.BorderSize = 0;
+            this.btnTimKiem.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnTimKiem.Font = new System.Drawing.Font("Segoe UI", 9.5F, System.Drawing.FontStyle.Bold);
+            this.btnTimKiem.ForeColor = System.Drawing.Color.White;
+            this.btnTimKiem.Location = new System.Drawing.Point(805, 236);
+            this.btnTimKiem.Size = new System.Drawing.Size(115, 31);
+            this.btnTimKiem.Text = "🔍 Tìm kiếm";
+            this.btnTimKiem.UseVisualStyleBackColor = false;
+            this.btnTimKiem.Click += new System.EventHandler(this.btnTimKiem_Click);
+            this.btnTimKiem.Name = "btnTimKiem";
+            this.btnTimKiem.TabIndex = 37;
+            // 
+            // btnLamMoiTim
+            // 
+            this.btnLamMoiTim.BackColor = System.Drawing.Color.FromArgb(238, 242, 248);
+            this.btnLamMoiTim.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(180, 200, 225);
+            this.btnLamMoiTim.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnLamMoiTim.Font = new System.Drawing.Font("Segoe UI", 9.5F);
+            this.btnLamMoiTim.ForeColor = System.Drawing.Color.FromArgb(30, 58, 95);
+            this.btnLamMoiTim.Location = new System.Drawing.Point(930, 236);
+            this.btnLamMoiTim.Size = new System.Drawing.Size(105, 31);
+            this.btnLamMoiTim.Text = "🔄 Làm mới";
+            this.btnLamMoiTim.UseVisualStyleBackColor = false;
+            this.btnLamMoiTim.Click += new System.EventHandler(this.btnLamMoiTim_Click);
+            this.btnLamMoiTim.Name = "btnLamMoiTim";
+            this.btnLamMoiTim.TabIndex = 38;
             // 
             // BenhNhanForm
             // 
@@ -421,8 +520,16 @@
         private System.Windows.Forms.Button btnSua;
         private System.Windows.Forms.Button btnXoa;
         private System.Windows.Forms.Button btnLamMoi;
-        private System.Windows.Forms.Label lblTim;
-        private System.Windows.Forms.TextBox txtTim;
-        private System.Windows.Forms.Label lblGoiYTim;
+        private System.Windows.Forms.Label lblTieuDeTim;
+        private System.Windows.Forms.Label lblTimMa;
+        private System.Windows.Forms.TextBox txtTimMa;
+        private System.Windows.Forms.Label lblTimTen;
+        private System.Windows.Forms.TextBox txtTimTen;
+        private System.Windows.Forms.Label lblTimGt;
+        private System.Windows.Forms.ComboBox cmbTimGt;
+        private System.Windows.Forms.Label lblTimSdt;
+        private System.Windows.Forms.TextBox txtTimSdt;
+        private System.Windows.Forms.Button btnTimKiem;
+        private System.Windows.Forms.Button btnLamMoiTim;
     }
 }

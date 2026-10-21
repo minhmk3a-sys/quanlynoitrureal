@@ -19,9 +19,12 @@ namespace QuanLyNoiTru
 
             this.pnlRight = new System.Windows.Forms.Panel();
             this.pnlTopList = new System.Windows.Forms.Panel();
-            this.lblTim = new System.Windows.Forms.Label();
-            this.txtTim = new System.Windows.Forms.TextBox();
-            this.btnLamMoi = new System.Windows.Forms.Button();
+            this.lblTimMa = new System.Windows.Forms.Label();
+            this.txtTimMa = new System.Windows.Forms.TextBox();
+            this.lblTimBN = new System.Windows.Forms.Label();
+            this.txtTimBN = new System.Windows.Forms.TextBox();
+            this.btnTimKiem = new System.Windows.Forms.Button();
+            this.btnLamMoiTim = new System.Windows.Forms.Button();
             this.btnNhapExcel = new System.Windows.Forms.Button();
             this.dgv = new System.Windows.Forms.DataGridView();
 
@@ -80,36 +83,62 @@ namespace QuanLyNoiTru
             this.pnlTopList.Location = new System.Drawing.Point(0, 0);
             this.pnlTopList.Size = new System.Drawing.Size(650, 48);
             this.pnlTopList.Name = "pnlTopList";
-            this.pnlTopList.Controls.Add(this.lblTim);
-            this.pnlTopList.Controls.Add(this.txtTim);
-            this.pnlTopList.Controls.Add(this.btnLamMoi);
+            this.pnlTopList.Controls.Add(this.lblTimMa);
+            this.pnlTopList.Controls.Add(this.txtTimMa);
+            this.pnlTopList.Controls.Add(this.lblTimBN);
+            this.pnlTopList.Controls.Add(this.txtTimBN);
+            this.pnlTopList.Controls.Add(this.btnTimKiem);
+            this.pnlTopList.Controls.Add(this.btnLamMoiTim);
             this.pnlTopList.Controls.Add(this.btnNhapExcel);
 
-            // lblTim
-            this.lblTim.Location = new System.Drawing.Point(12, 14);
-            this.lblTim.Size = new System.Drawing.Size(80, 24);
-            this.lblTim.Text = "Tìm kiếm:";
+            // lblTimMa
+            this.lblTimMa.Location = new System.Drawing.Point(8, 14);
+            this.lblTimMa.Size = new System.Drawing.Size(50, 24);
+            this.lblTimMa.Text = "Mã NV";
 
-            // txtTim
-            this.txtTim.Location = new System.Drawing.Point(95, 10);
-            this.txtTim.Size = new System.Drawing.Size(240, 27);
+            // txtTimMa
+            this.txtTimMa.Location = new System.Drawing.Point(58, 10);
+            this.txtTimMa.Size = new System.Drawing.Size(65, 27);
 
-            // btnLamMoi
-            this.btnLamMoi.BackColor = System.Drawing.Color.FromArgb(52, 101, 164);
-            this.btnLamMoi.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnLamMoi.ForeColor = System.Drawing.Color.White;
-            this.btnLamMoi.Location = new System.Drawing.Point(345, 8);
-            this.btnLamMoi.Size = new System.Drawing.Size(90, 30);
-            this.btnLamMoi.Text = "Làm mới";
-            this.btnLamMoi.UseVisualStyleBackColor = false;
-            this.btnLamMoi.Click += new System.EventHandler(this.btnLamMoi_Click);
+            // lblTimBN
+            this.lblTimBN.Location = new System.Drawing.Point(130, 14);
+            this.lblTimBN.Size = new System.Drawing.Size(70, 24);
+            this.lblTimBN.Text = "Bệnh nhân";
+
+            // txtTimBN
+            this.txtTimBN.Location = new System.Drawing.Point(202, 10);
+            this.txtTimBN.Size = new System.Drawing.Size(110, 27);
+
+            // btnTimKiem
+            this.btnTimKiem.BackColor = System.Drawing.Color.FromArgb(52, 101, 164);
+            this.btnTimKiem.FlatAppearance.BorderSize = 0;
+            this.btnTimKiem.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnTimKiem.Font = new System.Drawing.Font("Segoe UI", 9.5F, System.Drawing.FontStyle.Bold);
+            this.btnTimKiem.ForeColor = System.Drawing.Color.White;
+            this.btnTimKiem.Location = new System.Drawing.Point(320, 8);
+            this.btnTimKiem.Size = new System.Drawing.Size(100, 31);
+            this.btnTimKiem.Text = "🔍 Tìm kiếm";
+            this.btnTimKiem.UseVisualStyleBackColor = false;
+            this.btnTimKiem.Click += new System.EventHandler(this.btnTimKiem_Click);
+
+            // btnLamMoiTim
+            this.btnLamMoiTim.BackColor = System.Drawing.Color.FromArgb(238, 242, 248);
+            this.btnLamMoiTim.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(180, 200, 225);
+            this.btnLamMoiTim.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnLamMoiTim.Font = new System.Drawing.Font("Segoe UI", 9.5F);
+            this.btnLamMoiTim.ForeColor = System.Drawing.Color.FromArgb(30, 58, 95);
+            this.btnLamMoiTim.Location = new System.Drawing.Point(426, 8);
+            this.btnLamMoiTim.Size = new System.Drawing.Size(95, 31);
+            this.btnLamMoiTim.Text = "🔄 Làm mới";
+            this.btnLamMoiTim.UseVisualStyleBackColor = false;
+            this.btnLamMoiTim.Click += new System.EventHandler(this.btnLamMoiTim_Click);
 
             // btnNhapExcel
             this.btnNhapExcel.BackColor = System.Drawing.Color.FromArgb(52, 101, 164);
             this.btnNhapExcel.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnNhapExcel.ForeColor = System.Drawing.Color.White;
-            this.btnNhapExcel.Location = new System.Drawing.Point(445, 8);
-            this.btnNhapExcel.Size = new System.Drawing.Size(105, 30);
+            this.btnNhapExcel.Location = new System.Drawing.Point(528, 8);
+            this.btnNhapExcel.Size = new System.Drawing.Size(105, 31);
             this.btnNhapExcel.Text = "Nhập Excel";
             this.btnNhapExcel.UseVisualStyleBackColor = false;
             this.btnNhapExcel.Click += new System.EventHandler(this.btnNhapExcel_Click);
@@ -369,9 +398,12 @@ namespace QuanLyNoiTru
 
         private System.Windows.Forms.Panel pnlRight;
         private System.Windows.Forms.Panel pnlTopList;
-        private System.Windows.Forms.Label lblTim;
-        private System.Windows.Forms.TextBox txtTim;
-        private System.Windows.Forms.Button btnLamMoi;
+        private System.Windows.Forms.Label lblTimMa;
+        private System.Windows.Forms.TextBox txtTimMa;
+        private System.Windows.Forms.Label lblTimBN;
+        private System.Windows.Forms.TextBox txtTimBN;
+        private System.Windows.Forms.Button btnTimKiem;
+        private System.Windows.Forms.Button btnLamMoiTim;
         private System.Windows.Forms.DataGridView dgv;
 
         private System.Windows.Forms.Label lblHeaderChiPhi;

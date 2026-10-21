@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Windows.Forms;
 
@@ -8,7 +9,7 @@ namespace QuanLyNoiTru
     /// Form Quản lý Giường bệnh nội trú:
     /// - Quản lý thông tin từng giường bệnh trong các phòng điều trị.
     /// - Mỗi giường thuộc về một phòng nhất định, có đơn giá riêng và trạng thái ('Trống' hoặc 'Đang sử dụng').
-    /// - Cung cấp đầy đủ các thao tác Thêm mới, Sửa thông tin, Xóa giường và Tìm kiếm theo tên giường, phòng hoặc mã giường.
+    /// - Cung cấp đầy đủ các thao tác Thêm mới, Sửa thông tin, Xóa giường và Tìm kiếm theo nhiều điều kiện độc lập (Mã giường, Tên giường, Phòng, Trạng thái).
     /// </summary>
     public partial class GiuongForm : BaseForm
     {
@@ -18,30 +19,90 @@ namespace QuanLyNoiTru
         public GiuongForm()
         {
             InitializeComponent();
-            FillCombo(cmbPhong, DatabaseHelper.GetData("SELECT MaPhong, TenPhong FROM PHONG ORDER BY MaPhong"), "TenPhong", "MaPhong");
+            var dtPhong = DatabaseHelper.GetData("SELECT MaPhong, TenPhong FROM PHONG ORDER BY MaPhong");
+            FillCombo(cmbPhong, dtPhong, "TenPhong", "MaPhong");
+
+            // Đổ danh sách phòng vào ComboBox tìm kiếm kèm '-- Tất cả --'
+            var dtTimPhong = dtPhong.Copy();
+            var rAll = dtTimPhong.NewRow();
+            rAll["MaPhong"] = "";
+            rAll["TenPhong"] = "-- Tất cả --";
+            dtTimPhong.Rows.InsertAt(rAll, 0);
+            FillCombo(cmbTimPhong, dtTimPhong, "TenPhong", "MaPhong");
+            cmbTimTT.SelectedIndex = 0; // Mặc định trạng thái: '-- Tất cả --'
+
             LoadData();
 
             // Khi click chọn dòng trên lưới -> đổ thông tin lên các ô nhập liệu
             dgv.SelectionChanged += (s, e) => FillInputs();
 
-            // Tìm kiếm tức thời khi nhập ký tự vào ô tìm kiếm
-            txtTim.TextChanged += (s, e) => LoadData();
+            // Nhấn Enter trong các ô tìm kiếm để thực hiện tìm kiếm
+            KeyEventHandler onEnter = (s, e) => { if (e.KeyCode == Keys.Enter) LoadData(); };
+            txtTimMa.KeyDown += onEnter;
+            txtTimTen.KeyDown += onEnter;
         }
 
         /// <summary>
-        /// Nạp danh sách giường bệnh từ CSDL kèm tên phòng tương ứng, lọc theo từ khóa tìm kiếm.
+        /// Nút [🔍 Tìm kiếm]: Thực hiện lọc danh sách giường bệnh theo điều kiện đã nhập.
+        /// </summary>
+        void btnTimKiem_Click(object s, EventArgs e)
+        {
+            LoadData();
+        }
+
+        /// <summary>
+        /// Nút [🔄 Làm mới] ở thanh tìm kiếm: Xóa trắng các ô tìm kiếm và nạp lại toàn bộ danh sách giường.
+        /// </summary>
+        void btnLamMoiTim_Click(object s, EventArgs e)
+        {
+            txtTimMa.Text = "";
+            txtTimTen.Text = "";
+            if (cmbTimPhong.Items.Count > 0) cmbTimPhong.SelectedIndex = 0;
+            if (cmbTimTT.Items.Count > 0) cmbTimTT.SelectedIndex = 0;
+            LoadData();
+        }
+
+        /// <summary>
+        /// Nạp danh sách giường bệnh từ CSDL theo nhiều điều kiện kết hợp (Mã giường, Tên giường, Phòng, Trạng thái).
         /// </summary>
         void LoadData()
         {
-            dgv.DataSource = DatabaseHelper.GetData(
-                @"SELECT g.MaGiuong AS [Mã giường], g.TenGiuong AS [Tên giường],
-                         g.MaPhong AS [Mã phòng], p.TenPhong AS [Phòng],
-                         g.DonGia AS [Đơn giá],
-                         g.TrangThai AS [Trạng thái]
-                  FROM GIUONG g LEFT JOIN PHONG p ON p.MaPhong = g.MaPhong
-                  WHERE g.MaGiuong LIKE @k OR g.TenGiuong LIKE @k OR p.TenPhong LIKE @k
-                  ORDER BY g.MaGiuong",
-                DatabaseHelper.Param("@k", "%" + txtTim.Text.Trim() + "%"));
+            string sql = @"
+                SELECT g.MaGiuong AS [Mã giường], g.TenGiuong AS [Tên giường],
+                       g.MaPhong AS [Mã phòng], p.TenPhong AS [Phòng],
+                       g.DonGia AS [Đơn giá],
+                       g.TrangThai AS [Trạng thái]
+                FROM GIUONG g LEFT JOIN PHONG p ON p.MaPhong = g.MaPhong
+                WHERE 1=1 ";
+
+            var ps = new List<SqlParameter>();
+            string ma = txtTimMa.Text.Trim();
+            if (!string.IsNullOrEmpty(ma))
+            {
+                sql += " AND g.MaGiuong LIKE @timMa ";
+                ps.Add(DatabaseHelper.Param("@timMa", "%" + ma + "%"));
+            }
+            string ten = txtTimTen.Text.Trim();
+            if (!string.IsNullOrEmpty(ten))
+            {
+                sql += " AND g.TenGiuong LIKE @timTen ";
+                ps.Add(DatabaseHelper.Param("@timTen", "%" + ten + "%"));
+            }
+            string maPhong = GetValue(cmbTimPhong);
+            if (!string.IsNullOrEmpty(maPhong))
+            {
+                sql += " AND g.MaPhong = @timPhong ";
+                ps.Add(DatabaseHelper.Param("@timPhong", maPhong));
+            }
+            if (cmbTimTT.SelectedIndex > 0 && cmbTimTT.Text != "-- Tất cả --")
+            {
+                sql += " AND g.TrangThai = @timTT ";
+                ps.Add(DatabaseHelper.Param("@timTT", cmbTimTT.Text));
+            }
+
+            sql += " ORDER BY g.MaGiuong";
+
+            dgv.DataSource = DatabaseHelper.GetData(sql, ps.ToArray());
             FormatColumn(dgv, "Đơn giá", "N0");
         }
 
@@ -71,7 +132,10 @@ namespace QuanLyNoiTru
         /// </summary>
         void Reset()
         {
-            txtTim.Text = "";
+            txtTimMa.Text = "";
+            txtTimTen.Text = "";
+            if (cmbTimPhong.Items.Count > 0) cmbTimPhong.SelectedIndex = 0;
+            if (cmbTimTT.Items.Count > 0) cmbTimTT.SelectedIndex = 0;
             LoadData();
             dgv.CurrentCell = null;
             ClearInputs();
@@ -90,7 +154,7 @@ namespace QuanLyNoiTru
         /// </summary>
         bool Valid()
         {
-            if (txtTen.Text.Trim() == "") { ShowWarning("Vui lòng nhập tên giường."); txtTen.Focus(); return false; }
+            if (txtTen.Text.Trim() == "") { ShowWarning("Vui lòng nhập tên/số giường."); txtTen.Focus(); return false; }
             if (GetValue(cmbPhong) == null) { ShowWarning("Vui lòng chọn phòng."); return false; }
             decimal dg;
             if (!decimal.TryParse(txtDonGia.Text, out dg) || dg < 0)
@@ -99,7 +163,7 @@ namespace QuanLyNoiTru
         }
 
         /// <summary>
-        /// Tạo mảng tham số SqlParameter cho câu lệnh SQL thêm/sửa giường.
+        /// Đóng gói dữ liệu thành mảng tham số SQL.
         /// </summary>
         SqlParameter[] Ps(string ma)
         {
@@ -107,24 +171,21 @@ namespace QuanLyNoiTru
             {
                 DatabaseHelper.Param("@ma", ma),
                 DatabaseHelper.Param("@ten", txtTen.Text.Trim()),
-                DatabaseHelper.Param("@phong", GetValue(cmbPhong)),
+                DatabaseHelper.Param("@p", GetValue(cmbPhong)),
                 DatabaseHelper.Param("@gia", decimal.Parse(txtDonGia.Text))
             };
         }
 
         /// <summary>
-        /// Thêm giường mới vào phòng được chọn:
-        /// - Sinh mã giường tự động (GI...).
-        /// - Mặc định trạng thái ban đầu là 'Trống'.
+        /// Thêm giường mới với mã sinh tự động (G...). Trạng thái mặc định ban đầu là 'Trống'.
         /// </summary>
         void btnThem_Click(object s, EventArgs e)
         {
             if (!Valid()) return;
             try
             {
-                string ma = DatabaseHelper.NextId("GIUONG", "MaGiuong", "GI");
-                DatabaseHelper.ExecuteNonQuery(
-                    "INSERT INTO GIUONG(MaGiuong, TenGiuong, MaPhong, DonGia, TrangThai, SoGiuong) VALUES(@ma, @ten, @phong, @gia, N'Trống', 1)", Ps(ma));
+                string ma = DatabaseHelper.NextId("GIUONG", "MaGiuong", "G");
+                DatabaseHelper.ExecuteNonQuery("INSERT INTO GIUONG(MaGiuong, TenGiuong, MaPhong, DonGia, TrangThai) VALUES(@ma, @ten, @p, @gia, N'Trống')", Ps(ma));
                 Reset();
                 ShowInfo("Đã thêm giường " + ma + ".");
             }
@@ -132,7 +193,8 @@ namespace QuanLyNoiTru
         }
 
         /// <summary>
-        /// Cập nhật thông tin giường (tên giường, phòng, đơn giá).
+        /// Cập nhật thông tin giường (tên giường, chuyển phòng, đơn giá).
+        /// Không cho phép sửa nếu giường đang có bệnh nhân nằm điều trị.
         /// </summary>
         void btnSua_Click(object s, EventArgs e)
         {
@@ -140,8 +202,7 @@ namespace QuanLyNoiTru
             if (!Valid()) return;
             try
             {
-                DatabaseHelper.ExecuteNonQuery(
-                    "UPDATE GIUONG SET TenGiuong=@ten, MaPhong=@phong, DonGia=@gia WHERE MaGiuong=@ma", Ps(txtMa.Text));
+                DatabaseHelper.ExecuteNonQuery("UPDATE GIUONG SET TenGiuong=@ten, MaPhong=@p, DonGia=@gia WHERE MaGiuong=@ma", Ps(txtMa.Text));
                 LoadData();
                 ShowInfo("Đã cập nhật giường " + txtMa.Text + ".");
             }
@@ -149,7 +210,7 @@ namespace QuanLyNoiTru
         }
 
         /// <summary>
-        /// Xóa giường khỏi hệ thống. Nếu giường đang có bệnh nhân nằm điều trị thì CSDL sẽ chặn xóa để đảm bảo toàn vẹn.
+        /// Xóa giường bệnh. Hệ thống sẽ chặn nếu giường đang được sử dụng hoặc có lịch sử điều trị.
         /// </summary>
         void btnXoa_Click(object s, EventArgs e)
         {
@@ -162,7 +223,7 @@ namespace QuanLyNoiTru
             }
             catch (Exception ex)
             {
-                ShowError(ex, "Giường này đang có bệnh nhân sử dụng nên không thể xóa.");
+                ShowError(ex, "Giường này đang có bệnh nhân nằm hoặc đã có lịch sử nhập viện, không thể xóa.");
             }
         }
     }

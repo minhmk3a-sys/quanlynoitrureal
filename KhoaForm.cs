@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Windows.Forms;
 
@@ -20,13 +21,33 @@ namespace QuanLyNoiTru
             // Đăng ký sự kiện người dùng:
             // - Bấm vào 1 dòng trong bảng -> Điền thông tin lên các ô nhập
             dgv.SelectionChanged += (s, e) => FillInputs();
-            // - Gõ vào ô tìm kiếm -> Lọc dữ liệu ngay
-            txtTim.TextChanged += (s, e) => LoadData();
+
+            // Nhấn Enter trong ô tìm kiếm để thực hiện tìm kiếm
+            KeyEventHandler onEnter = (s, e) => { if (e.KeyCode == Keys.Enter) LoadData(); };
+            txtTimMa.KeyDown += onEnter;
+            txtTimTen.KeyDown += onEnter;
         }
 
         /// <summary>
-        /// Đọc toàn bộ danh sách khoa từ bảng KHOA trong CSDL và hiển thị lên DataGridView.
-        /// Sử dụng biểu thức CASE WHEN trong SQL để chuyển giá trị boolean (1/0) thành chữ tiếng Việt ("Hoạt động" / "Ngừng").
+        /// Nút [🔍 Tìm kiếm]: Thực hiện lọc danh sách khoa theo điều kiện đã nhập.
+        /// </summary>
+        void btnTimKiem_Click(object s, EventArgs e)
+        {
+            LoadData();
+        }
+
+        /// <summary>
+        /// Nút [🔄 Làm mới] ở thanh tìm kiếm: Xóa trắng các ô tìm kiếm và nạp lại toàn bộ danh sách khoa.
+        /// </summary>
+        void btnLamMoiTim_Click(object s, EventArgs e)
+        {
+            txtTimMa.Text = "";
+            txtTimTen.Text = "";
+            LoadData();
+        }
+
+        /// <summary>
+        /// Đọc toàn bộ danh sách khoa từ bảng KHOA theo nhiều điều kiện tìm kiếm kết hợp (Mã khoa và Tên khoa).
         /// </summary>
         void LoadData()
         {
@@ -35,10 +56,24 @@ namespace QuanLyNoiTru
                        CASE WHEN TrangThai = 1 THEN N'Hoạt động' ELSE N'Ngừng' END AS [Trạng thái],
                        GhiChu AS [Ghi chú]
                 FROM KHOA
-                WHERE MaKhoa LIKE @k OR TenKhoa LIKE @k
-                ORDER BY MaKhoa";
+                WHERE 1=1 ";
 
-            dgv.DataSource = DatabaseHelper.GetData(sql, DatabaseHelper.Param("@k", "%" + txtTim.Text.Trim() + "%"));
+            var ps = new List<SqlParameter>();
+            string ma = txtTimMa.Text.Trim();
+            if (!string.IsNullOrEmpty(ma))
+            {
+                sql += " AND MaKhoa LIKE @timMa ";
+                ps.Add(DatabaseHelper.Param("@timMa", "%" + ma + "%"));
+            }
+            string ten = txtTimTen.Text.Trim();
+            if (!string.IsNullOrEmpty(ten))
+            {
+                sql += " AND TenKhoa LIKE @timTen ";
+                ps.Add(DatabaseHelper.Param("@timTen", "%" + ten + "%"));
+            }
+            sql += " ORDER BY MaKhoa";
+
+            dgv.DataSource = DatabaseHelper.GetData(sql, ps.ToArray());
         }
 
         /// <summary>
@@ -69,7 +104,8 @@ namespace QuanLyNoiTru
         /// </summary>
         void Reset()
         {
-            txtTim.Text = "";
+            txtTimMa.Text = "";
+            txtTimTen.Text = "";
             LoadData();
             dgv.CurrentCell = null;
             ClearInputs();

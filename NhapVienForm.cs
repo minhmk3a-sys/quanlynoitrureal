@@ -73,7 +73,7 @@ namespace QuanLyNoiTru
         public NhapVienForm()
         {
             InitializeComponent();   // dựng giao diện (code nằm trong NhapVienForm.Designer.cs)
-            cmbLoc.SelectedIndex = 0; // Mặc định hiển thị "Tất cả"
+            cmbTimTT.SelectedIndex = 0; // Mặc định hiển thị "-- Tất cả --"
 
             // Nạp danh mục Bệnh nhân và Khoa vào ComboBox
             FillCombo(cmbBN, DatabaseHelper.GetData("SELECT MaBN, MaBN + N' - ' + HoTen AS Hien FROM BENHNHAN ORDER BY MaBN"), "Hien", "MaBN");
@@ -84,9 +84,31 @@ namespace QuanLyNoiTru
             // Lắng nghe sự kiện người dùng tương tác
             cmbKhoa.SelectedIndexChanged += (s, e) => { if (!loading) LoadPhongBS(); };
             cmbPhong.SelectedIndexChanged += (s, e) => { if (!loading) LoadGiuong(); };
-            cmbLoc.SelectedIndexChanged += (s, e) => LoadData();
-            txtTim.TextChanged += (s, e) => LoadData();
             dgv.SelectionChanged += (s, e) => SelectRow();
+
+            // Nhấn Enter trong các ô tìm kiếm để thực hiện tìm kiếm
+            KeyEventHandler onEnter = (s, e) => { if (e.KeyCode == Keys.Enter) LoadData(); };
+            txtTimMa.KeyDown += onEnter;
+            txtTimBN.KeyDown += onEnter;
+        }
+
+        /// <summary>
+        /// Nút [🔍 Tìm kiếm]: Thực hiện lọc danh sách hồ sơ nhập viện theo các tiêu chí đã nhập.
+        /// </summary>
+        void btnTimKiem_Click(object s, EventArgs e)
+        {
+            LoadData();
+        }
+
+        /// <summary>
+        /// Nút [🔄 Làm mới] ở thanh tìm kiếm: Xóa các điều kiện tìm kiếm và nạp lại toàn bộ danh sách.
+        /// </summary>
+        void btnLamMoiTim_Click(object s, EventArgs e)
+        {
+            txtTimMa.Text = "";
+            txtTimBN.Text = "";
+            cmbTimTT.SelectedIndex = 0;
+            LoadData();
         }
 
         /// <summary>
@@ -139,25 +161,47 @@ namespace QuanLyNoiTru
         }
 
         /// <summary>
-        /// Tải toàn bộ danh sách hồ sơ nhập viện lên DataGridView theo điều kiện lọc trạng thái và từ khóa tìm kiếm.
+        /// Tải toàn bộ danh sách hồ sơ nhập viện lên DataGridView theo nhiều điều kiện kết hợp:
+        /// Mã nhập viện, Bệnh nhân (Mã BN hoặc Tên BN), và Trạng thái.
         /// </summary>
         void LoadData()
         {
-            dgv.DataSource = DatabaseHelper.GetData(
-                @"SELECT nv.MaNhapVien AS [Mã NV], nv.MaBN AS [Mã BN], bn.HoTen AS [Bệnh nhân],
-                         nv.MaBS AS [Mã BS], bs.HoTen AS [Bác sĩ],
-                         p.MaKhoa AS [Mã khoa], p.MaPhong AS [Mã phòng], p.TenPhong AS [Phòng], nv.MaGiuong AS [Mã giường],
-                         nv.NgayNhapVien AS [Ngày vào viện], nv.NgayRaVien AS [Ngày ra viện],
-                         nv.LyDoNhapVien AS [Lý do], nv.TrangThai AS [Trạng thái], nv.GhiChu AS [Ghi chú]
-                  FROM NHAPVIEN nv
-                  JOIN BENHNHAN bn ON bn.MaBN = nv.MaBN
-                  LEFT JOIN BACSI bs ON bs.MaBS = nv.MaBS
-                  LEFT JOIN GIUONG g ON g.MaGiuong = nv.MaGiuong
-                  LEFT JOIN PHONG p ON p.MaPhong = g.MaPhong
-                  WHERE (@tt = N'Tất cả' OR nv.TrangThai = @tt)
-                    AND (nv.MaNhapVien LIKE @k OR nv.MaBN LIKE @k OR bn.HoTen LIKE @k)
-                  ORDER BY nv.NgayNhapVien DESC",
-                DatabaseHelper.Param("@tt", cmbLoc.Text), DatabaseHelper.Param("@k", "%" + txtTim.Text.Trim() + "%"));
+            string sql = @"
+                SELECT nv.MaNhapVien AS [Mã NV], nv.MaBN AS [Mã BN], bn.HoTen AS [Bệnh nhân],
+                       nv.MaBS AS [Mã BS], bs.HoTen AS [Bác sĩ],
+                       p.MaKhoa AS [Mã khoa], p.MaPhong AS [Mã phòng], p.TenPhong AS [Phòng], nv.MaGiuong AS [Mã giường],
+                       nv.NgayNhapVien AS [Ngày vào viện], nv.NgayRaVien AS [Ngày ra viện],
+                       nv.LyDoNhapVien AS [Lý do], nv.TrangThai AS [Trạng thái], nv.GhiChu AS [Ghi chú]
+                FROM NHAPVIEN nv
+                JOIN BENHNHAN bn ON bn.MaBN = nv.MaBN
+                LEFT JOIN BACSI bs ON bs.MaBS = nv.MaBS
+                LEFT JOIN GIUONG g ON g.MaGiuong = nv.MaGiuong
+                LEFT JOIN PHONG p ON p.MaPhong = g.MaPhong
+                WHERE 1=1 ";
+
+            var ps = new List<SqlParameter>();
+
+            if (!string.IsNullOrWhiteSpace(txtTimMa.Text))
+            {
+                sql += " AND nv.MaNhapVien LIKE @maNV ";
+                ps.Add(DatabaseHelper.Param("@maNV", "%" + txtTimMa.Text.Trim() + "%"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(txtTimBN.Text))
+            {
+                sql += " AND (nv.MaBN LIKE @bn OR bn.HoTen LIKE @bn) ";
+                ps.Add(DatabaseHelper.Param("@bn", "%" + txtTimBN.Text.Trim() + "%"));
+            }
+
+            if (cmbTimTT.SelectedIndex > 0)
+            {
+                sql += " AND nv.TrangThai = @tt ";
+                ps.Add(DatabaseHelper.Param("@tt", cmbTimTT.Text));
+            }
+
+            sql += " ORDER BY nv.NgayNhapVien DESC ";
+
+            dgv.DataSource = DatabaseHelper.GetData(sql, ps.ToArray());
             FormatColumn(dgv, "Ngày vào viện", "dd/MM/yyyy HH:mm");
             FormatColumn(dgv, "Ngày ra viện", "dd/MM/yyyy HH:mm");
             // Ẩn bớt các cột mã phục vụ liên kết nội bộ
@@ -203,6 +247,9 @@ namespace QuanLyNoiTru
         /// </summary>
         void ResetForm()
         {
+            txtTimMa.Text = "";
+            txtTimBN.Text = "";
+            cmbTimTT.SelectedIndex = 0;
             LoadData();
             dgv.CurrentCell = null;
             editingBed = "";

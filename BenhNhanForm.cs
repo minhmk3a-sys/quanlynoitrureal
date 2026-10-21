@@ -15,12 +15,19 @@ namespace QuanLyNoiTru
     /// ====================================================================================================
     /// 📚 HƯỚNG DẪN CỐT LÕI CHO NGƯỜI MỚI HỌC C# VỀ CHỨC NĂNG THÊM - SỬA - XÓA - TÌM KIẾM (CRUD)
     /// ====================================================================================================
-    /// 1. TÌM KIẾM (Search):
-    ///    - Bắt sự kiện 'txtTim.TextChanged' (khi người dùng gõ bất kỳ ký tự nào vào ô tìm kiếm).
-    ///    - Gọi hàm 'LoadData()'. Trong hàm này dùng câu lệnh:
-    ///         SELECT ... WHERE MaBN LIKE @k OR HoTen LIKE @k ...
-    ///         với tham số @k = "%" + txtTim.Text.Trim() + "%"
-    ///    - Dấu '%' đại diện cho chuỗi ký tự bất kỳ, giúp tìm kiếm tương đối ở đầu, giữa hoặc cuối chuỗi.
+    /// 1. TÌM KIẾM NHIỀU ĐIỀU KIỆN TÁCH BIỆT (Multi-criteria Search):
+    ///    - Tách riêng từng trường tìm kiếm độc lập:
+    ///         + Mã BN (txtTimMa): tìm theo mã định danh duy nhất.
+    ///         + Họ và tên (txtTimTen): tìm kiếm theo tên bệnh nhân.
+    ///         + Giới tính (cmbTimGt): lọc theo danh sách chọn ("-- Tất cả --", "Nam", "Nữ").
+    ///         + Số điện thoại (txtTimSdt): tìm theo SĐT bệnh nhân hoặc SĐT người thân.
+    ///    - Dùng câu lệnh SQL động với mệnh đề khởi tạo "WHERE 1=1":
+    ///         Mệnh đề "1=1" luôn đúng trong SQL. Sau đó, với mỗi tiêu chí người dùng có nhập,
+    ///         ta chỉ việc nối thêm "AND [TênCột] LIKE @thamSo".
+    ///    - Sử dụng danh sách tham số an toàn List&lt;SqlParameter&gt; ps để tránh tấn công SQL Injection.
+    ///    - Hỗ trợ cả 2 chế độ:
+    ///         + Nhấp nút [🔍 Tìm kiếm] hoặc nút [🔄 Làm mới].
+    ///         + Tự động lọc tức thì (Real-time) ngay khi người dùng gõ từng ký tự vào ô tìm kiếm.
     /// 
     /// 2. HIỂN THỊ CHI TIẾT KHI CHỌN DÒNG (SelectionChanged):
     ///    - Khi nhấp chuột vào một dòng trên DataGridView -> kích hoạt sự kiện 'dgv.SelectionChanged'.
@@ -70,19 +77,44 @@ namespace QuanLyNoiTru
         {
             InitializeComponent(); // Khởi tạo các điều khiển giao diện (TextBox, ComboBox, DataGridView...)
             cmbGt.SelectedIndex = 0; // Mặc định chọn giới tính đầu tiên ("Nam")
+            cmbTimGt.SelectedIndex = 0; // Mặc định tìm kiếm giới tính: "-- Tất cả --"
 
             // Nạp danh sách bệnh nhân từ CSDL lên DataGridView lần đầu tiên
             LoadData();
 
-            // Gắn sự kiện sau khi nạp dữ liệu xong để tránh sự kiện kích hoạt quá sớm khi dữ liệu chưa sẵn sàng:
+            // Gắn sự kiện sau khi nạp dữ liệu xong:
             // - SelectionChanged: Khi người dùng nhấp chọn 1 dòng trên bảng -> Điền thông tin lên các ô nhập
             dgv.SelectionChanged += (s, e) => FillInputs();
-            // - TextChanged: Khi gõ từ khóa vào ô tìm kiếm -> Tự động lọc danh sách tức thì
-            txtTim.TextChanged += (s, e) => LoadData();
+
+            // Nhấn phím Enter trong các ô tìm kiếm để thực hiện tìm kiếm
+            KeyEventHandler onEnter = (s, e) => { if (e.KeyCode == Keys.Enter) LoadData(); };
+            txtTimMa.KeyDown += onEnter;
+            txtTimTen.KeyDown += onEnter;
+            txtTimSdt.KeyDown += onEnter;
         }
 
         /// <summary>
-        /// Nút [Làm mới]: Xóa trắng ô tìm kiếm và các ô nhập liệu, đưa form về trạng thái ban đầu.
+        /// Nút [🔍 Tìm kiếm]: Thực hiện lọc danh sách theo các điều kiện người dùng đã nhập.
+        /// </summary>
+        void btnTimKiem_Click(object s, EventArgs e)
+        {
+            LoadData();
+        }
+
+        /// <summary>
+        /// Nút [🔄 Làm mới] ở thanh tìm kiếm: Xóa trắng các ô điều kiện tìm kiếm và nạp lại toàn bộ danh sách.
+        /// </summary>
+        void btnLamMoiTim_Click(object s, EventArgs e)
+        {
+            txtTimMa.Text = "";
+            txtTimTen.Text = "";
+            cmbTimGt.SelectedIndex = 0;
+            txtTimSdt.Text = "";
+            LoadData();
+        }
+
+        /// <summary>
+        /// Nút [Làm mới] ở phần thông tin nhập liệu: Xóa trắng cả ô tìm kiếm và các ô nhập liệu, đưa form về ban đầu.
         /// </summary>
         void btnLamMoi_Click(object s, EventArgs e)
         {
@@ -90,8 +122,17 @@ namespace QuanLyNoiTru
         }
 
         /// <summary>
-        /// Đọc danh sách bệnh nhân từ bảng BENHNHAN trong CSDL và hiển thị lên lưới dgv.
-        /// Hỗ trợ tìm kiếm theo: Mã BN, Họ tên, số CCCD hoặc Số điện thoại.
+        /// Đọc danh sách bệnh nhân từ CSDL theo nhiều điều kiện tìm kiếm kết hợp (Mã BN, Họ tên, Giới tính, SĐT).
+        /// 
+        /// NGUYÊN LÝ HOẠT ĐỘNG DÀNH CHO NGƯỜI MỚI HỌC C#:
+        /// 1. Dùng mệnh đề khởi tạo "WHERE 1=1" - vì 1=1 luôn ĐÚNG, giúp việc nối thêm các điều kiện "AND ..."
+        ///    sau đó trở nên cực kỳ linh hoạt mà không cần phải kiểm tra xem trước đó đã có chữ "WHERE" hay chưa.
+        /// 2. Với mỗi thành phần tìm kiếm:
+        ///    - Nếu ô Mã BN có nhập: nối thêm " AND MaBN LIKE @timMa " (tìm kiếm tương đối chứa chuỗi).
+        ///    - Nếu ô Họ tên có nhập: nối thêm " AND HoTen LIKE @timTen ".
+        ///    - Nếu Giới tính khác '-- Tất cả --': nối thêm " AND GioiTinh = @timGt " (lọc chính xác).
+        ///    - Nếu ô SĐT có nhập: nối thêm " AND (SoDienThoai LIKE @timSdt OR SDTNguoiThan LIKE @timSdt) ".
+        /// 3. Sử dụng List&lt;SqlParameter&gt; ps để truyền tham số, ngăn ngừa triệt để lỗi SQL Injection.
         /// </summary>
         void LoadData()
         {
@@ -100,11 +141,44 @@ namespace QuanLyNoiTru
                        CCCD AS [CCCD], SoDienThoai AS [SĐT], DiaChi AS [Địa chỉ], NgheNghiep AS [Nghề nghiệp],
                        NguoiThan AS [Người thân], SDTNguoiThan AS [SĐT người thân], TinhTrang AS [Tình trạng bệnh]
                 FROM BENHNHAN
-                WHERE MaBN LIKE @k OR HoTen LIKE @k OR CCCD LIKE @k OR SoDienThoai LIKE @k
-                ORDER BY MaBN";
+                WHERE 1=1 ";
 
-            // Tham số @k kèm ký tự đại diện % giúp tìm kiếm chuỗi chứa từ khóa ở bất kỳ vị trí nào
-            dgv.DataSource = DatabaseHelper.GetData(sql, DatabaseHelper.Param("@k", "%" + txtTim.Text.Trim() + "%"));
+            var ps = new List<SqlParameter>();
+
+            // 1. Điều kiện tìm theo Mã BN (nếu có nhập)
+            string ma = txtTimMa.Text.Trim();
+            if (!string.IsNullOrEmpty(ma))
+            {
+                sql += " AND MaBN LIKE @timMa ";
+                ps.Add(DatabaseHelper.Param("@timMa", "%" + ma + "%"));
+            }
+
+            // 2. Điều kiện tìm theo Họ và tên (nếu có nhập)
+            string ten = txtTimTen.Text.Trim();
+            if (!string.IsNullOrEmpty(ten))
+            {
+                sql += " AND HoTen LIKE @timTen ";
+                ps.Add(DatabaseHelper.Param("@timTen", "%" + ten + "%"));
+            }
+
+            // 3. Điều kiện lọc theo Giới tính (nếu chọn khác '-- Tất cả --')
+            if (cmbTimGt.SelectedIndex > 0 && cmbTimGt.Text != "-- Tất cả --")
+            {
+                sql += " AND GioiTinh = @timGt ";
+                ps.Add(DatabaseHelper.Param("@timGt", cmbTimGt.Text));
+            }
+
+            // 4. Điều kiện tìm theo Số điện thoại (tìm cả SĐT bệnh nhân lẫn SĐT người thân)
+            string sdt = txtTimSdt.Text.Trim();
+            if (!string.IsNullOrEmpty(sdt))
+            {
+                sql += " AND (SoDienThoai LIKE @timSdt OR SDTNguoiThan LIKE @timSdt) ";
+                ps.Add(DatabaseHelper.Param("@timSdt", "%" + sdt + "%"));
+            }
+
+            sql += " ORDER BY MaBN";
+
+            dgv.DataSource = DatabaseHelper.GetData(sql, ps.ToArray());
             // Định dạng cột ngày sinh hiển thị dạng ngày/tháng/năm
             FormatColumn(dgv, "Ngày sinh", "dd/MM/yyyy");
         }
@@ -144,11 +218,14 @@ namespace QuanLyNoiTru
         }
 
         /// <summary>
-        /// Đặt lại form: Xóa ô tìm kiếm, nạp lại toàn bộ dữ liệu và bỏ chọn trên bảng.
+        /// Đặt lại form: Xóa các ô tìm kiếm, nạp lại toàn bộ dữ liệu và bỏ chọn trên bảng.
         /// </summary>
         void Reset()
         {
-            txtTim.Text = "";
+            txtTimMa.Text = "";
+            txtTimTen.Text = "";
+            cmbTimGt.SelectedIndex = 0;
+            txtTimSdt.Text = "";
             LoadData();
             dgv.CurrentCell = null;
             ClearInputs();
