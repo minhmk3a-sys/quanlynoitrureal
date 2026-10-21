@@ -1,4 +1,4 @@
-﻿namespace QuanLyNoiTru
+namespace QuanLyNoiTru
 {
     partial class BaoCaoForm
     {
@@ -25,8 +25,7 @@
             this.lblBaoCao = new System.Windows.Forms.Label();
             this.cmbBC = new System.Windows.Forms.ComboBox();
             this.btnXem = new System.Windows.Forms.Button();
-            this.btnIn = new System.Windows.Forms.Button();
-            this.btnPdf = new System.Windows.Forms.Button();
+            this.btnNhapExcel = new System.Windows.Forms.Button();
             this.btnExcel = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.dgv)).BeginInit();
             this.pnlTop.SuspendLayout();
@@ -61,8 +60,7 @@
             this.pnlTop.Controls.Add(this.lblBaoCao);
             this.pnlTop.Controls.Add(this.cmbBC);
             this.pnlTop.Controls.Add(this.btnXem);
-            this.pnlTop.Controls.Add(this.btnIn);
-            this.pnlTop.Controls.Add(this.btnPdf);
+            this.pnlTop.Controls.Add(this.btnNhapExcel);
             this.pnlTop.Controls.Add(this.btnExcel);
             // 
             // lblBaoCao
@@ -97,33 +95,19 @@
             this.btnXem.Name = "btnXem";
             this.btnXem.TabIndex = 4;
             // 
-            // btnIn
+            // btnNhapExcel
             // 
-            this.btnIn.BackColor = System.Drawing.Color.FromArgb(52, 101, 164);
-            this.btnIn.FlatAppearance.BorderSize = 0;
-            this.btnIn.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnIn.ForeColor = System.Drawing.Color.White;
-            this.btnIn.Location = new System.Drawing.Point(570, 10);
-            this.btnIn.Size = new System.Drawing.Size(115, 32);
-            this.btnIn.Text = "In danh sách";
-            this.btnIn.UseVisualStyleBackColor = false;
-            this.btnIn.Click += new System.EventHandler(this.btnIn_Click);
-            this.btnIn.Name = "btnIn";
-            this.btnIn.TabIndex = 5;
-            // 
-            // btnPdf
-            // 
-            this.btnPdf.BackColor = System.Drawing.Color.FromArgb(52, 101, 164);
-            this.btnPdf.FlatAppearance.BorderSize = 0;
-            this.btnPdf.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnPdf.ForeColor = System.Drawing.Color.White;
-            this.btnPdf.Location = new System.Drawing.Point(695, 10);
-            this.btnPdf.Size = new System.Drawing.Size(100, 32);
-            this.btnPdf.Text = "Xuất PDF";
-            this.btnPdf.UseVisualStyleBackColor = false;
-            this.btnPdf.Click += new System.EventHandler(this.btnPdf_Click);
-            this.btnPdf.Name = "btnPdf";
-            this.btnPdf.TabIndex = 6;
+            this.btnNhapExcel.BackColor = System.Drawing.Color.FromArgb(52, 101, 164);
+            this.btnNhapExcel.FlatAppearance.BorderSize = 0;
+            this.btnNhapExcel.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnNhapExcel.ForeColor = System.Drawing.Color.White;
+            this.btnNhapExcel.Location = new System.Drawing.Point(570, 10);
+            this.btnNhapExcel.Size = new System.Drawing.Size(110, 32);
+            this.btnNhapExcel.Text = "Nhập Excel";
+            this.btnNhapExcel.UseVisualStyleBackColor = false;
+            this.btnNhapExcel.Click += new System.EventHandler(this.btnNhapExcel_Click);
+            this.btnNhapExcel.Name = "btnNhapExcel";
+            this.btnNhapExcel.TabIndex = 5;
             // 
             // btnExcel
             // 
@@ -131,13 +115,13 @@
             this.btnExcel.FlatAppearance.BorderSize = 0;
             this.btnExcel.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnExcel.ForeColor = System.Drawing.Color.White;
-            this.btnExcel.Location = new System.Drawing.Point(805, 10);
+            this.btnExcel.Location = new System.Drawing.Point(690, 10);
             this.btnExcel.Size = new System.Drawing.Size(110, 32);
             this.btnExcel.Text = "Xuất Excel";
             this.btnExcel.UseVisualStyleBackColor = false;
             this.btnExcel.Click += new System.EventHandler(this.btnExcel_Click);
             this.btnExcel.Name = "btnExcel";
-            this.btnExcel.TabIndex = 7;
+            this.btnExcel.TabIndex = 6;
             // 
             // BaoCaoForm
             // 
@@ -163,8 +147,7 @@
         private System.Windows.Forms.Label lblBaoCao;
         private System.Windows.Forms.ComboBox cmbBC;
         private System.Windows.Forms.Button btnXem;
-        private System.Windows.Forms.Button btnIn;
-        private System.Windows.Forms.Button btnPdf;
+        private System.Windows.Forms.Button btnNhapExcel;
         private System.Windows.Forms.Button btnExcel;
     }
 }

@@ -5,20 +5,32 @@ using System.Windows.Forms;
 namespace QuanLyNoiTru
 {
     /// <summary>
-    /// Quản lý giường: thêm / sửa / xóa / tìm kiếm.
-    /// Mỗi giường thuộc một phòng, có đơn giá riêng và trạng thái (trống / đang sử dụng).
+    /// Form Quản lý Giường bệnh nội trú:
+    /// - Quản lý thông tin từng giường bệnh trong các phòng điều trị.
+    /// - Mỗi giường thuộc về một phòng nhất định, có đơn giá riêng và trạng thái ('Trống' hoặc 'Đang sử dụng').
+    /// - Cung cấp đầy đủ các thao tác Thêm mới, Sửa thông tin, Xóa giường và Tìm kiếm theo tên giường, phòng hoặc mã giường.
     /// </summary>
     public partial class GiuongForm : BaseForm
     {
+        /// <summary>
+        /// Khởi tạo form Giường bệnh, nạp danh sách phòng vào ComboBox và liên kết các sự kiện UI.
+        /// </summary>
         public GiuongForm()
         {
             InitializeComponent();
             FillCombo(cmbPhong, DatabaseHelper.GetData("SELECT MaPhong, TenPhong FROM PHONG ORDER BY MaPhong"), "TenPhong", "MaPhong");
             LoadData();
+
+            // Khi click chọn dòng trên lưới -> đổ thông tin lên các ô nhập liệu
             dgv.SelectionChanged += (s, e) => FillInputs();
+
+            // Tìm kiếm tức thời khi nhập ký tự vào ô tìm kiếm
             txtTim.TextChanged += (s, e) => LoadData();
         }
 
+        /// <summary>
+        /// Nạp danh sách giường bệnh từ CSDL kèm tên phòng tương ứng, lọc theo từ khóa tìm kiếm.
+        /// </summary>
         void LoadData()
         {
             dgv.DataSource = DatabaseHelper.GetData(
@@ -33,6 +45,9 @@ namespace QuanLyNoiTru
             FormatColumn(dgv, "Đơn giá", "N0");
         }
 
+        /// <summary>
+        /// Điền dữ liệu từ dòng được chọn trong DataGridView lên các ô nhập liệu.
+        /// </summary>
         void FillInputs()
         {
             var r = dgv.CurrentRow;
@@ -43,11 +58,17 @@ namespace QuanLyNoiTru
             txtDonGia.Text = GetText(r, "Đơn giá");
         }
 
+        /// <summary>
+        /// Xóa sạch dữ liệu trên các ô nhập liệu.
+        /// </summary>
         void ClearInputs()
         {
             txtMa.Text = txtTen.Text = txtDonGia.Text = "";
         }
 
+        /// <summary>
+        /// Đặt lại form về trạng thái ban đầu: xóa ô tìm kiếm, tải lại bảng và bỏ chọn.
+        /// </summary>
         void Reset()
         {
             txtTim.Text = "";
@@ -56,8 +77,17 @@ namespace QuanLyNoiTru
             ClearInputs();
         }
 
+        /// <summary>
+        /// Nút Làm mới: gọi hàm Reset().
+        /// </summary>
         void btnLamMoi_Click(object s, EventArgs e) { Reset(); }
 
+        /// <summary>
+        /// Kiểm tra tính hợp lệ của dữ liệu giường bệnh:
+        /// - Tên giường không được để trống.
+        /// - Phải chọn phòng cho giường.
+        /// - Đơn giá phải là số >= 0.
+        /// </summary>
         bool Valid()
         {
             if (txtTen.Text.Trim() == "") { ShowWarning("Vui lòng nhập tên giường."); txtTen.Focus(); return false; }
@@ -68,6 +98,9 @@ namespace QuanLyNoiTru
             return true;
         }
 
+        /// <summary>
+        /// Tạo mảng tham số SqlParameter cho câu lệnh SQL thêm/sửa giường.
+        /// </summary>
         SqlParameter[] Ps(string ma)
         {
             return new[]
@@ -79,6 +112,11 @@ namespace QuanLyNoiTru
             };
         }
 
+        /// <summary>
+        /// Thêm giường mới vào phòng được chọn:
+        /// - Sinh mã giường tự động (GI...).
+        /// - Mặc định trạng thái ban đầu là 'Trống'.
+        /// </summary>
         void btnThem_Click(object s, EventArgs e)
         {
             if (!Valid()) return;
@@ -93,6 +131,9 @@ namespace QuanLyNoiTru
             catch (Exception ex) { ShowError(ex); }
         }
 
+        /// <summary>
+        /// Cập nhật thông tin giường (tên giường, phòng, đơn giá).
+        /// </summary>
         void btnSua_Click(object s, EventArgs e)
         {
             if (txtMa.Text == "") { ShowWarning("Hãy chọn giường cần sửa."); return; }
@@ -107,6 +148,9 @@ namespace QuanLyNoiTru
             catch (Exception ex) { ShowError(ex); }
         }
 
+        /// <summary>
+        /// Xóa giường khỏi hệ thống. Nếu giường đang có bệnh nhân nằm điều trị thì CSDL sẽ chặn xóa để đảm bảo toàn vẹn.
+        /// </summary>
         void btnXoa_Click(object s, EventArgs e)
         {
             if (txtMa.Text == "") { ShowWarning("Hãy chọn giường cần xóa."); return; }

@@ -1,4 +1,4 @@
-﻿namespace QuanLyNoiTru
+namespace QuanLyNoiTru
 {
     partial class VienPhiForm
     {
@@ -46,6 +46,7 @@
             this.btnLuu = new System.Windows.Forms.Button();
             this.btnThanhToan = new System.Windows.Forms.Button();
             this.btnInHoaDon = new System.Windows.Forms.Button();
+            this.btnNhapExcel = new System.Windows.Forms.Button();
             this.btnLamMoi = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.dgv)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.nudKham)).BeginInit();
@@ -103,6 +104,7 @@
             this.pnlTop.Controls.Add(this.btnLuu);
             this.pnlTop.Controls.Add(this.btnThanhToan);
             this.pnlTop.Controls.Add(this.btnInHoaDon);
+            this.pnlTop.Controls.Add(this.btnNhapExcel);
             this.pnlTop.Controls.Add(this.btnLamMoi);
             // 
             // lblNV
@@ -342,12 +344,26 @@
             this.btnInHoaDon.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnInHoaDon.ForeColor = System.Drawing.Color.White;
             this.btnInHoaDon.Location = new System.Drawing.Point(370, 165);
-            this.btnInHoaDon.Size = new System.Drawing.Size(120, 32);
-            this.btnInHoaDon.Text = "Xuất hóa đơn";
+            this.btnInHoaDon.Size = new System.Drawing.Size(125, 32);
+            this.btnInHoaDon.Text = "Xuất Excel";
             this.btnInHoaDon.UseVisualStyleBackColor = false;
             this.btnInHoaDon.Click += new System.EventHandler(this.btnInHoaDon_Click);
             this.btnInHoaDon.Name = "btnInHoaDon";
             this.btnInHoaDon.TabIndex = 25;
+            // 
+            // btnNhapExcel
+            // 
+            this.btnNhapExcel.BackColor = System.Drawing.Color.FromArgb(52, 101, 164);
+            this.btnNhapExcel.FlatAppearance.BorderSize = 0;
+            this.btnNhapExcel.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnNhapExcel.ForeColor = System.Drawing.Color.White;
+            this.btnNhapExcel.Location = new System.Drawing.Point(505, 165);
+            this.btnNhapExcel.Size = new System.Drawing.Size(110, 32);
+            this.btnNhapExcel.Text = "Nhập Excel";
+            this.btnNhapExcel.UseVisualStyleBackColor = false;
+            this.btnNhapExcel.Click += new System.EventHandler(this.btnNhapExcel_Click);
+            this.btnNhapExcel.Name = "btnNhapExcel";
+            this.btnNhapExcel.TabIndex = 26;
             // 
             // btnLamMoi
             // 
@@ -355,13 +371,13 @@
             this.btnLamMoi.FlatAppearance.BorderSize = 0;
             this.btnLamMoi.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnLamMoi.ForeColor = System.Drawing.Color.White;
-            this.btnLamMoi.Location = new System.Drawing.Point(500, 165);
+            this.btnLamMoi.Location = new System.Drawing.Point(625, 165);
             this.btnLamMoi.Size = new System.Drawing.Size(90, 32);
             this.btnLamMoi.Text = "Làm mới";
             this.btnLamMoi.UseVisualStyleBackColor = false;
             this.btnLamMoi.Click += new System.EventHandler(this.btnLamMoi_Click);
             this.btnLamMoi.Name = "btnLamMoi";
-            this.btnLamMoi.TabIndex = 26;
+            this.btnLamMoi.TabIndex = 27;
             // 
             // VienPhiForm
             // 
@@ -410,6 +426,7 @@
         private System.Windows.Forms.Button btnLuu;
         private System.Windows.Forms.Button btnThanhToan;
         private System.Windows.Forms.Button btnInHoaDon;
+        private System.Windows.Forms.Button btnNhapExcel;
         private System.Windows.Forms.Button btnLamMoi;
     }
 }

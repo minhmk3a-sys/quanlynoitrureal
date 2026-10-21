@@ -12,6 +12,33 @@ namespace QuanLyNoiTru
     /// - Bảng tổng hợp chi phí (tiền giường, tiền thuốc, tiền dịch vụ, BHYT trả, BN trả)
     /// - Bắt buộc thanh toán 100% viện phí trước khi cho xuất viện
     /// - Khi hoàn tất xuất viện: tự động trả giường về Trống và cập nhật trạng thái bệnh nhân
+    /// 
+    /// ====================================================================================================
+    /// 📚 HƯỚNG DẪN DÀNH CHO NGƯỜI MỚI HỌC C#: QUY TRÌNH XUẤT VIỆN, TỔNG HỢP CHI PHÍ VÀ QUY TẮC BR07
+    /// ====================================================================================================
+    /// 1. CÔNG THỨC VÀ NGUYÊN TẮC TÍNH CHI PHÍ ĐIỀU TRỊ:
+    ///    - Số ngày nằm viện: Tính bằng (Ngày ra - Ngày vào). Nếu bệnh nhân vào và ra trong cùng một ngày
+    ///      thì theo quy định y tế vẫn tính tối thiểu là 1 ngày: soNgayNam = Math.Max(1, diffDays).
+    ///    - Tiền giường: Số ngày nằm x Đơn giá giường (lấy từ bảng GIUONG, nếu bằng 0 lấy từ bảng PHONG).
+    ///    - Tiền thuốc: Dùng câu lệnh SQL con (Subquery / JOIN) tính tổng thành tiền tất cả các đơn thuốc
+    ///      đã kê trong suốt đợt điều trị của hồ sơ nhập viện này:
+    ///         SELECT SUM(ct.ThanhTien) FROM CT_DONTHUOC ct JOIN DONTHUOC dt ... JOIN BENHAN ba ... WHERE ba.MaNhapVien = @nv
+    ///    - Tiền dịch vụ: Tổng các dịch vụ kỹ thuật (xét nghiệm, siêu âm, phẫu thuật...).
+    ///    - Phần BHYT chi trả: Nếu bệnh nhân có thẻ BHYT, hệ thống tự động tính phần quỹ BHYT chi trả
+    ///      (80% tiền giường chuẩn, và theo % BHYT của từng loại thuốc/dịch vụ).
+    ///    - Bệnh nhân tự trả = Math.Max(0, Tổng tiền - BHYT chi trả).
+    /// 
+    /// 2. QUY TẮC BẢO VỆ BR07 (BẮT BUỘC THANH TOÁN 100%):
+    ///    - Trong hàm 'btnHoanTatXuatVien_Click', hệ thống kiểm tra:
+    ///         if (trangThaiVP != "Đã thanh toán") { Cảnh báo chặn lại; return; }
+    ///    - Bệnh nhân không thể xuất viện nếu chưa thanh toán đầy đủ các khoản viện phí.
+    /// 
+    /// 3. TRANSACTION ĐỒNG BỘ 3 BẢNG KHI XUẤT VIỆN THÀNH CÔNG:
+    ///    - Bảng NHAPVIEN: Cập nhật TrangThai = N'Đã xuất viện' và lưu NgayRaVien chính xác.
+    ///    - Bảng GIUONG: Cập nhật TrangThai = N'Trống' để giải phóng giường ngay lập tức cho ca tiếp theo.
+    ///    - Bảng BENHNHAN: Cập nhật TrangThai = N'Đã xuất viện'.
+    ///    - Cả 3 thao tác này gói gọn trong 1 Transaction để đảm bảo không bao giờ bị lệch dữ liệu.
+    /// ====================================================================================================
     /// </summary>
     public partial class XuatVienForm : BaseForm
     {
@@ -39,7 +66,10 @@ namespace QuanLyNoiTru
         // 1. TẢI DỮ LIỆU
         // ====================================================================
 
-        void LoadDanhSach()
+        /// <summary>
+/// Tải danh sách bệnh nhân nhập viện cùng thông tin viện phí.
+/// </summary>
+void LoadDanhSach()
         {
             string sql = @"
                 SELECT nv.MaNhapVien AS [Mã NV], bn.MaBN AS [Mã BN], bn.HoTen AS [Bệnh nhân],
@@ -65,7 +95,10 @@ namespace QuanLyNoiTru
             FormatColumn(dgv, "Tổng tiền", "N0");
         }
 
-        void ChonDong()
+        /// <summary>
+/// Xử lý khi người dùng chọn một dòng trong DataGridView, đồng thời gán các thông tin của hồ sơ nhập viện vào các trường hiển thị.
+/// </summary>
+void ChonDong()
         {
             var r = dgv.CurrentRow;
             if (r == null) return;
@@ -102,7 +135,11 @@ namespace QuanLyNoiTru
         // 2. TÍNH TOÁN CHI PHÍ XUẤT VIỆN (PRD B4 & 11.1)
         // ====================================================================
 
-        void TinhChiPhi()
+        /// <summary>
+/// Tính toán chi phí xuất viện dựa trên ngày ra, ngày vào, và các khoản chi phí (giường, thuốc, dịch vụ, khám).
+/// Cập nhật các trường hiển thị và trạng thái viện phí.
+/// </summary>
+void TinhChiPhi()
         {
             if (string.IsNullOrEmpty(maNV)) return;
 
@@ -325,10 +362,24 @@ namespace QuanLyNoiTru
             catch (Exception ex) { ShowError(ex); }
         }
 
-        // In phiếu xuất viện & bảng kê chi phí
+        /// <summary>
+        /// Xuất giấy xuất viện và bảng tổng hợp chi phí ra file Excel (.xlsx):
+        /// 
+        /// NGUYÊN LÝ HOẠT ĐỘNG DÀNH CHO NGƯỜI MỚI HỌC C#:
+        /// 1. TinhChiPhi() để tổng hợp đầy đủ các khoản tiền mới nhất: tiền giường, tiền thuốc, tiền dịch vụ,
+        ///    tiền bảo hiểm chi trả và số tiền người bệnh phải thanh toán.
+        /// 2. Tạo một danh sách dòng văn bản (List&lt;string&gt; L) chứa nội dung hoàn chỉnh của phiếu xuất viện:
+        ///    - Tiêu đề bệnh viện, thông tin bệnh nhân, số thẻ BHYT, khoa phòng nằm.
+        ///    - Thời gian vào viện, ra viện, tổng số ngày nằm viện.
+        ///    - Chi tiết từng khoản chi phí (giường, thuốc, dịch vụ, tổng viện phí, phần BHYT chi trả, phần BN nộp).
+        ///    - Chữ ký xác nhận của bệnh nhân và bác sĩ/kế toán viện phí.
+        /// 3. Mở SaveFileDialog để người dùng chọn thư mục và đặt tên file .xlsx cần lưu.
+        /// 4. Sử dụng hàm Export.WriteTextXlsx(...) tạo tệp Excel theo chuẩn OpenXML quốc tế.
+        /// 5. Sau khi lưu thành công, thông báo cho người dùng và tự động mở file bằng ứng dụng mặc định.
+        /// </summary>
         void btnInPhieu_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrEmpty(maNV)) { ShowWarning("Hãy chọn hồ sơ nhập viện để in phiếu."); return; }
+            if (string.IsNullOrEmpty(maNV)) { ShowWarning("Hãy chọn hồ sơ nhập viện để xuất phiếu."); return; }
 
             try
             {
@@ -362,9 +413,48 @@ namespace QuanLyNoiTru
                 L.Add("   Người nộp tiền                         Bác sĩ / Kế toán");
                 L.Add(" (ký, ghi rõ họ tên)                     (ký, ghi rõ họ tên)");
 
-                Export.Preview(Export.TextDoc(L), "Phiếu xuất viện - " + maNV);
+                using (var dlg = new SaveFileDialog
+                {
+                    Filter = "Excel (*.xlsx)|*.xlsx",
+                    FileName = "PhieuXuatVien_" + maNV + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".xlsx",
+                    Title = "Chọn nơi lưu phiếu xuất viện Excel"
+                })
+                {
+                    if (dlg.ShowDialog() != DialogResult.OK) return;
+                    Export.WriteTextXlsx(dlg.FileName, L, "PhieuXuatVien");
+                    ShowInfo("Đã xuất phiếu xuất viện ra file Excel thành công:\n" + dlg.FileName);
+                    Export.TryOpen(dlg.FileName);
+                }
             }
             catch (Exception ex) { ShowError(ex); }
+        }
+
+        /// <summary>
+        /// Nút Nhập Excel: Cho phép người dùng chọn tệp Excel (.xlsx) từ máy tính
+        /// và hiển thị danh sách hồ sơ lên bảng dữ liệu DataGridView.
+        /// 
+        /// NGUYÊN LÝ HOẠT ĐỘNG DÀNH CHO NGƯỜI MỚI HỌC C#:
+        /// 1. Mở OpenFileDialog thông qua hàm Export.ImportExcelDialog() để chọn file .xlsx.
+        /// 2. Đọc cấu trúc XML của sheet đầu tiên trong file nén Excel và chuyển đổi thành một đối tượng DataTable.
+        /// 3. Nếu đọc thành công (kết quả trả về khác null):
+        ///    - Gán DataTable vào dgv.DataSource để hiển thị lên lưới giao diện.
+        ///    - Hiển thị hộp thoại thông báo thành công cùng số lượng dòng dữ liệu đã nạp.
+        /// </summary>
+        void btnNhapExcel_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                var dt = Export.ImportExcelDialog();
+                if (dt != null)
+                {
+                    dgv.DataSource = dt;
+                    ShowInfo("Đã nhập thành công " + dt.Rows.Count + " dòng từ file Excel!");
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError(ex);
+            }
         }
 
         void btnLamMoi_Click(object sender, EventArgs e)

@@ -22,6 +22,7 @@ namespace QuanLyNoiTru
             this.lblTim = new System.Windows.Forms.Label();
             this.txtTim = new System.Windows.Forms.TextBox();
             this.btnLamMoi = new System.Windows.Forms.Button();
+            this.btnNhapExcel = new System.Windows.Forms.Button();
             this.dgv = new System.Windows.Forms.DataGridView();
 
             // Controls của panel bên phải
@@ -82,6 +83,7 @@ namespace QuanLyNoiTru
             this.pnlTopList.Controls.Add(this.lblTim);
             this.pnlTopList.Controls.Add(this.txtTim);
             this.pnlTopList.Controls.Add(this.btnLamMoi);
+            this.pnlTopList.Controls.Add(this.btnNhapExcel);
 
             // lblTim
             this.lblTim.Location = new System.Drawing.Point(12, 14);
@@ -90,17 +92,27 @@ namespace QuanLyNoiTru
 
             // txtTim
             this.txtTim.Location = new System.Drawing.Point(95, 10);
-            this.txtTim.Size = new System.Drawing.Size(260, 27);
+            this.txtTim.Size = new System.Drawing.Size(240, 27);
 
             // btnLamMoi
             this.btnLamMoi.BackColor = System.Drawing.Color.FromArgb(52, 101, 164);
             this.btnLamMoi.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnLamMoi.ForeColor = System.Drawing.Color.White;
-            this.btnLamMoi.Location = new System.Drawing.Point(370, 8);
-            this.btnLamMoi.Size = new System.Drawing.Size(100, 30);
+            this.btnLamMoi.Location = new System.Drawing.Point(345, 8);
+            this.btnLamMoi.Size = new System.Drawing.Size(90, 30);
             this.btnLamMoi.Text = "Làm mới";
             this.btnLamMoi.UseVisualStyleBackColor = false;
             this.btnLamMoi.Click += new System.EventHandler(this.btnLamMoi_Click);
+
+            // btnNhapExcel
+            this.btnNhapExcel.BackColor = System.Drawing.Color.FromArgb(52, 101, 164);
+            this.btnNhapExcel.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnNhapExcel.ForeColor = System.Drawing.Color.White;
+            this.btnNhapExcel.Location = new System.Drawing.Point(445, 8);
+            this.btnNhapExcel.Size = new System.Drawing.Size(105, 30);
+            this.btnNhapExcel.Text = "Nhập Excel";
+            this.btnNhapExcel.UseVisualStyleBackColor = false;
+            this.btnNhapExcel.Click += new System.EventHandler(this.btnNhapExcel_Click);
 
             // 
             // dgv
@@ -285,7 +297,7 @@ namespace QuanLyNoiTru
             this.btnInPhieu.ForeColor = System.Drawing.Color.White;
             this.btnInPhieu.Location = new System.Drawing.Point(305, 520);
             this.btnInPhieu.Size = new System.Drawing.Size(135, 34);
-            this.btnInPhieu.Text = "In phiếu";
+            this.btnInPhieu.Text = "Xuất phiếu Excel";
             this.btnInPhieu.UseVisualStyleBackColor = false;
             this.btnInPhieu.Click += new System.EventHandler(this.btnInPhieu_Click);
 
@@ -402,5 +414,6 @@ namespace QuanLyNoiTru
         private System.Windows.Forms.Button btnThanhToan;
         private System.Windows.Forms.Button btnHoanTatXuatVien;
         private System.Windows.Forms.Button btnInPhieu;
+        private System.Windows.Forms.Button btnNhapExcel;
     }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
@@ -7,12 +7,22 @@ using System.Windows.Forms;
 
 namespace QuanLyNoiTru
 {
-    /// <summary>Hồ sơ bệnh án: mỗi lần khám là 1 dòng mới (có ngày lập). Thêm lần khám sẽ cập nhật "Tình trạng bệnh" của bệnh nhân.</summary>
+    /// <summary>
+    /// Form quản lý Hồ sơ Bệnh án nội trú:
+    /// - Cho phép ghi nhận các lần thăm khám của bệnh nhân trong đợt nằm viện.
+    /// - Mỗi lần khám tạo 1 bản ghi BENHAN mới (ngày lập, triệu chứng, chẩn đoán, kết quả khám, hướng điều trị).
+    /// - Đồng thời tự động cập nhật tình trạng bệnh mới nhất vào bảng BENHNHAN.
+    /// </summary>
     public partial class BenhAnForm : BaseForm
     {
+        /// <summary>
+        /// Khởi tạo form bệnh án: nạp danh sách đợt nhập viện và gán sự kiện.
+        /// </summary>
         public BenhAnForm()
         {
             InitializeComponent();   // dựng giao diện (code nằm trong BenhAnForm.Designer.cs)
+
+            // Nạp danh sách các ca nhập viện chưa bị hủy vào ComboBox để bác sĩ lựa chọn
             FillCombo(cmbNV,
                 DatabaseHelper.GetData(@"SELECT nv.MaNhapVien,
                                   nv.MaNhapVien + N' - ' + bn.HoTen + N' (' + nv.TrangThai + N')' AS Hien
@@ -22,15 +32,25 @@ namespace QuanLyNoiTru
                 "Hien", "MaNhapVien");
 
             LoadData();
+
+            // Khi đổi ca nhập viện, tải lại lịch sử bệnh án và xóa các ô nhập liệu
             cmbNV.SelectedIndexChanged += (s, e) => { LoadData(); ClearInputs(); };
+
+            // Khi bấm vào dòng trên danh sách thì đưa dữ liệu lên các ô nhập
             dgv.SelectionChanged += (s, e) => FillInputs();
         }
 
+        /// <summary>
+        /// Xử lý sự kiện bấm nút 'Làm mới' để xóa trắng các ô nhập liệu.
+        /// </summary>
         void btnLamMoi_Click(object s, EventArgs e)
         {
             ClearInputs();
         }
 
+        /// <summary>
+        /// Tải toàn bộ các lần khám (bệnh án) của hồ sơ nhập viện đang chọn.
+        /// </summary>
         void LoadData()
         {
             dgv.DataSource = DatabaseHelper.GetData(
@@ -41,6 +61,9 @@ namespace QuanLyNoiTru
             FormatColumn(dgv, "Ngày lập", "dd/MM/yyyy HH:mm");
         }
 
+        /// <summary>
+        /// Điền dữ liệu từ dòng được chọn trong DataGridView lên các ô TextBox.
+        /// </summary>
         void FillInputs()
         {
             var r = dgv.CurrentRow;
@@ -52,12 +75,21 @@ namespace QuanLyNoiTru
             txtHuong.Text = GetText(r, "Hướng điều trị");
         }
 
+        /// <summary>
+        /// Xóa trắng các ô nhập liệu trên form và bỏ chọn dòng trên DataGridView.
+        /// </summary>
         void ClearInputs()
         {
             txtMa.Text = txtTrieuChung.Text = txtChanDoan.Text = txtKetQua.Text = txtHuong.Text = "";
             dgv.CurrentCell = null;
         }
 
+        /// <summary>
+        /// Thêm một lần khám mới:
+        /// 1. Sinh mã bệnh án tự động (BA...).
+        /// 2. Ghi bản ghi vào bảng BENHAN.
+        /// 3. Cập nhật trường TinhTrang của BENHNHAN tương ứng theo chẩn đoán mới nhất.
+        /// </summary>
         void btnThem_Click(object s, EventArgs e)
         {
             string nv = GetValue(cmbNV);
@@ -81,6 +113,9 @@ namespace QuanLyNoiTru
             catch (Exception ex) { ShowError(ex); }
         }
 
+        /// <summary>
+        /// Cập nhật thông tin lần khám (triệu chứng, chẩn đoán, kết quả, hướng điều trị).
+        /// </summary>
         void btnCapNhat_Click(object s, EventArgs e)
         {
             if (txtMa.Text == "") { ShowWarning("Hãy chọn một dòng bệnh án để cập nhật."); return; }
@@ -96,6 +131,9 @@ namespace QuanLyNoiTru
             catch (Exception ex) { ShowError(ex); }
         }
 
+        /// <summary>
+        /// Xóa lần khám được chọn. Nếu lần khám đã có đơn thuốc liên kết thì chặn xóa để đảm bảo toàn vẹn dữ liệu.
+        /// </summary>
         void btnXoa_Click(object s, EventArgs e)
         {
             if (txtMa.Text == "") { ShowWarning("Hãy chọn một dòng bệnh án để xóa."); return; }

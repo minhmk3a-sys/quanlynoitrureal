@@ -5,46 +5,71 @@ using System.Windows.Forms;
 namespace QuanLyNoiTru
 {
     /// <summary>
-    /// Quản lý phòng: thêm / sửa / xóa / tìm kiếm.
-    /// Kế thừa BaseForm để dùng các hàm tiện ích chung.
+    /// Form Quản lý Phòng bệnh (PhongForm):
+    /// Quản lý danh mục các phòng bệnh trực thuộc từng Khoa (Phòng cấp cứu 101, Phòng tim mạch 201...).
+    /// Phòng bệnh là nơi chứa các Giường bệnh để bệnh nhân nằm điều trị nội trú.
+    /// Kế thừa BaseForm để dùng các hàm tiện ích.
     /// </summary>
     public partial class PhongForm : BaseForm
     {
         public PhongForm()
         {
-            InitializeComponent();
-            // Đổ danh sách khoa vào ComboBox
+            InitializeComponent(); // Dựng giao diện
+
+            // Đổ danh sách Khoa đang hoạt động (TrangThai = 1) vào ComboBox để người dùng gán phòng vào khoa
             FillCombo(cmbKhoa, DatabaseHelper.GetData("SELECT MaKhoa, TenKhoa FROM KHOA WHERE TrangThai=1 ORDER BY MaKhoa"), "TenKhoa", "MaKhoa");
-            LoadData();
+
+            LoadData(); // Nạp dữ liệu phòng lên bảng DataGridView
+
+            // Gắn sự kiện:
+            // - Bấm chọn dòng trên bảng -> Nạp dữ liệu lên ô nhập
             dgv.SelectionChanged += (s, e) => FillInputs();
+            // - Gõ tìm kiếm -> Lọc phòng theo tên phòng, mã phòng hoặc tên khoa
             txtTim.TextChanged += (s, e) => LoadData();
         }
 
+        /// <summary>
+        /// Nạp danh sách phòng từ bảng PHONG kết hợp với bảng KHOA (LEFT JOIN) để hiển thị tên khoa.
+        /// </summary>
         void LoadData()
         {
-            dgv.DataSource = DatabaseHelper.GetData(
-                @"SELECT p.MaPhong AS [Mã phòng], p.TenPhong AS [Tên phòng],
-                         p.MaKhoa AS [Mã khoa], k.TenKhoa AS [Khoa]
-                  FROM PHONG p LEFT JOIN KHOA k ON k.MaKhoa = p.MaKhoa
-                  WHERE p.MaPhong LIKE @k OR p.TenPhong LIKE @k OR k.TenKhoa LIKE @k
-                  ORDER BY p.MaPhong",
-                DatabaseHelper.Param("@k", "%" + txtTim.Text.Trim() + "%"));
+            string sql = @"
+                SELECT p.MaPhong AS [Mã phòng], p.TenPhong AS [Tên phòng],
+                       p.MaKhoa AS [Mã khoa], k.TenKhoa AS [Khoa]
+                FROM PHONG p 
+                LEFT JOIN KHOA k ON k.MaKhoa = p.MaKhoa
+                WHERE p.MaPhong LIKE @k OR p.TenPhong LIKE @k OR k.TenKhoa LIKE @k
+                ORDER BY p.MaPhong";
+
+            dgv.DataSource = DatabaseHelper.GetData(sql, DatabaseHelper.Param("@k", "%" + txtTim.Text.Trim() + "%"));
         }
 
+        /// <summary>
+        /// Đọc thông tin phòng từ dòng đang chọn trong DataGridView và hiển thị lên giao diện.
+        /// </summary>
         void FillInputs()
         {
             var r = dgv.CurrentRow;
             if (r == null) return;
+
             txtMa.Text = GetText(r, "Mã phòng");
             txtTen.Text = GetText(r, "Tên phòng");
-            if (GetText(r, "Mã khoa") != "") cmbKhoa.SelectedValue = GetText(r, "Mã khoa");
+            // Chọn đúng khoa của phòng trong ComboBox
+            if (GetText(r, "Mã khoa") != "") 
+                cmbKhoa.SelectedValue = GetText(r, "Mã khoa");
         }
 
+        /// <summary>
+        /// Xóa trắng các ô nhập liệu.
+        /// </summary>
         void ClearInputs()
         {
             txtMa.Text = txtTen.Text = "";
         }
 
+        /// <summary>
+        /// Đặt lại form: xóa từ khóa tìm kiếm, tải lại danh sách.
+        /// </summary>
         void Reset()
         {
             txtTim.Text = "";
@@ -53,15 +78,33 @@ namespace QuanLyNoiTru
             ClearInputs();
         }
 
-        void btnLamMoi_Click(object s, EventArgs e) { Reset(); }
+        void btnLamMoi_Click(object s, EventArgs e) 
+        { 
+            Reset(); 
+        }
 
+        /// <summary>
+        /// Kiểm tra tính hợp lệ của dữ liệu trước khi lưu: Tên phòng không rỗng và phải chọn Khoa.
+        /// </summary>
         bool Valid()
         {
-            if (txtTen.Text.Trim() == "") { ShowWarning("Vui lòng nhập tên phòng."); txtTen.Focus(); return false; }
-            if (GetValue(cmbKhoa) == null) { ShowWarning("Vui lòng chọn khoa."); return false; }
+            if (txtTen.Text.Trim() == "") 
+            { 
+                ShowWarning("Vui lòng nhập tên phòng bệnh."); 
+                txtTen.Focus(); 
+                return false; 
+            }
+            if (GetValue(cmbKhoa) == null) 
+            { 
+                ShowWarning("Vui lòng chọn Khoa quản lý phòng này."); 
+                return false; 
+            }
             return true;
         }
 
+        /// <summary>
+        /// Đóng gói dữ liệu thành mảng tham số SQL.
+        /// </summary>
         SqlParameter[] Ps(string ma)
         {
             return new[]
@@ -72,46 +115,75 @@ namespace QuanLyNoiTru
             };
         }
 
+        /// <summary>
+        /// Xử lý nút [Thêm]: Tự động sinh mã PHxx (PH01, PH02...) và lưu phòng mới vào CSDL.
+        /// </summary>
         void btnThem_Click(object s, EventArgs e)
         {
             if (!Valid()) return;
             try
             {
                 string ma = DatabaseHelper.NextId("PHONG", "MaPhong", "PH");
-                DatabaseHelper.ExecuteNonQuery(
-                    "INSERT INTO PHONG(MaPhong, TenPhong, MaKhoa) VALUES(@ma, @ten, @khoa)", Ps(ma));
+                string sql = "INSERT INTO PHONG(MaPhong, TenPhong, MaKhoa) VALUES(@ma, @ten, @khoa)";
+                DatabaseHelper.ExecuteNonQuery(sql, Ps(ma));
                 Reset();
-                ShowInfo("Đã thêm phòng " + ma + ".");
+                ShowInfo("Đã thêm mới thành công phòng " + ma + ".");
             }
-            catch (Exception ex) { ShowError(ex); }
+            catch (Exception ex) 
+            { 
+                ShowError(ex); 
+            }
         }
 
+        /// <summary>
+        /// Xử lý nút [Sửa]: Cập nhật tên phòng hoặc chuyển phòng sang khoa khác.
+        /// </summary>
         void btnSua_Click(object s, EventArgs e)
         {
-            if (txtMa.Text == "") { ShowWarning("Hãy chọn phòng cần sửa."); return; }
+            if (txtMa.Text == "") 
+            { 
+                ShowWarning("Vui lòng chọn phòng cần sửa trong danh sách."); 
+                return; 
+            }
             if (!Valid()) return;
+
             try
             {
-                DatabaseHelper.ExecuteNonQuery(
-                    "UPDATE PHONG SET TenPhong=@ten, MaKhoa=@khoa WHERE MaPhong=@ma", Ps(txtMa.Text));
+                string sql = "UPDATE PHONG SET TenPhong=@ten, MaKhoa=@khoa WHERE MaPhong=@ma";
+                DatabaseHelper.ExecuteNonQuery(sql, Ps(txtMa.Text));
                 LoadData();
-                ShowInfo("Đã cập nhật phòng " + txtMa.Text + ".");
+                ShowInfo("Đã cập nhật thông tin phòng " + txtMa.Text + " thành công.");
             }
-            catch (Exception ex) { ShowError(ex); }
+            catch (Exception ex) 
+            { 
+                ShowError(ex); 
+            }
         }
 
+        /// <summary>
+        /// Xử lý nút [Xóa]: Xóa phòng bệnh.
+        /// Ràng buộc toàn vẹn: Không cho xóa nếu trong phòng này vẫn còn giường bệnh.
+        /// </summary>
         void btnXoa_Click(object s, EventArgs e)
         {
-            if (txtMa.Text == "") { ShowWarning("Hãy chọn phòng cần xóa."); return; }
-            if (!Ask("Xóa phòng " + txtMa.Text + " - " + txtTen.Text + "?")) return;
+            if (txtMa.Text == "") 
+            { 
+                ShowWarning("Vui lòng chọn phòng cần xóa."); 
+                return; 
+            }
+            if (!Ask("Bạn có chắc chắn muốn xóa phòng " + txtMa.Text + " - " + txtTen.Text + "?")) 
+                return;
+
             try
             {
                 DatabaseHelper.ExecuteNonQuery("DELETE FROM PHONG WHERE MaPhong=@ma", DatabaseHelper.Param("@ma", txtMa.Text));
                 Reset();
+                ShowInfo("Đã xóa phòng thành công.");
             }
             catch (Exception ex)
             {
-                ShowError(ex, "Phòng này đang có giường nên không thể xóa.\nHãy xóa các giường trong phòng trước.");
+                ShowError(ex, "Phòng này hiện đang có giường bệnh bên trong nên không thể xóa.\n" +
+                              "Vui lòng vào danh mục 'Giường' xóa các giường thuộc phòng này trước.");
             }
         }
     }

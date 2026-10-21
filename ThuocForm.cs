@@ -5,19 +5,31 @@ using System.Windows.Forms;
 namespace QuanLyNoiTru
 {
     /// <summary>
-    /// Quản lý thuốc: thêm / sửa / xóa / tìm kiếm.
-    /// Bao gồm đơn giá, số lượng tồn kho, và % bảo hiểm.
+    /// Form quản lý danh mục Thuốc và Kho dược:
+    /// - Quản lý thông tin: Mã thuốc, Tên thuốc, Số lượng tồn kho, Đơn giá và Tỷ lệ Bảo hiểm Y tế (% BHYT) thanh toán.
+    /// - Hỗ trợ các thao tác Thêm, Sửa, Xóa và Tìm kiếm thuốc.
+    /// - Kết nối trực tiếp với chức năng kê đơn nội trú (kê đơn sẽ tự động trừ kho, hủy đơn sẽ hoàn lại kho).
     /// </summary>
     public partial class ThuocForm : BaseForm
     {
+        /// <summary>
+        /// Khởi tạo form danh mục thuốc, tải dữ liệu ban đầu và gán các sự kiện giao diện.
+        /// </summary>
         public ThuocForm()
         {
             InitializeComponent();
             LoadData();
+
+            // Khi click chọn dòng thuốc trên lưới -> hiển thị chi tiết lên các ô nhập
             dgv.SelectionChanged += (s, e) => FillInputs();
+
+            // Tìm kiếm tức thời khi nhập ký tự vào ô tìm kiếm
             txtTim.TextChanged += (s, e) => LoadData();
         }
 
+        /// <summary>
+        /// Tải danh sách thuốc từ bảng THUOC theo từ khóa tìm kiếm (theo mã hoặc tên thuốc).
+        /// </summary>
         void LoadData()
         {
             dgv.DataSource = DatabaseHelper.GetData(
@@ -31,6 +43,9 @@ namespace QuanLyNoiTru
             FormatColumn(dgv, "Đơn giá", "N0");
         }
 
+        /// <summary>
+        /// Đưa thông tin từ dòng thuốc được chọn trên DataGridView lên các ô TextBox tương ứng.
+        /// </summary>
         void FillInputs()
         {
             var r = dgv.CurrentRow;
@@ -42,11 +57,17 @@ namespace QuanLyNoiTru
             txtBH.Text = GetText(r, "% BH");
         }
 
+        /// <summary>
+        /// Xóa sạch dữ liệu trên các ô nhập liệu thuốc.
+        /// </summary>
         void ClearInputs()
         {
             txtMa.Text = txtTen.Text = txtTonKho.Text = txtDonGia.Text = txtBH.Text = "";
         }
 
+        /// <summary>
+        /// Đặt lại form về trạng thái ban đầu: xóa ô tìm kiếm, tải lại bảng và bỏ chọn.
+        /// </summary>
         void Reset()
         {
             txtTim.Text = "";
@@ -55,8 +76,17 @@ namespace QuanLyNoiTru
             ClearInputs();
         }
 
+        /// <summary>
+        /// Nút Làm mới: xóa dữ liệu đang nhập và làm mới danh sách.
+        /// </summary>
         void btnLamMoi_Click(object s, EventArgs e) { Reset(); }
 
+        /// <summary>
+        /// Kiểm tra tính hợp lệ của dữ liệu thuốc:
+        /// - Tên thuốc không được để trống.
+        /// - Số lượng tồn kho phải là số nguyên >= 0.
+        /// - Đơn giá phải là số >= 0.
+        /// </summary>
         bool Valid()
         {
             if (txtTen.Text.Trim() == "") { ShowWarning("Vui lòng nhập tên thuốc."); txtTen.Focus(); return false; }
@@ -69,6 +99,9 @@ namespace QuanLyNoiTru
             return true;
         }
 
+        /// <summary>
+        /// Tạo mảng tham số SqlParameter cho các thao tác lưu dữ liệu thuốc.
+        /// </summary>
         SqlParameter[] Ps(string ma)
         {
             double? bh = null;
@@ -85,6 +118,9 @@ namespace QuanLyNoiTru
             };
         }
 
+        /// <summary>
+        /// Thêm thuốc mới vào danh mục với mã sinh tự động (TH...).
+        /// </summary>
         void btnThem_Click(object s, EventArgs e)
         {
             if (!Valid()) return;
@@ -99,6 +135,9 @@ namespace QuanLyNoiTru
             catch (Exception ex) { ShowError(ex); }
         }
 
+        /// <summary>
+        /// Cập nhật thông tin thuốc (tên, tồn kho, đơn giá, % BHYT).
+        /// </summary>
         void btnSua_Click(object s, EventArgs e)
         {
             if (txtMa.Text == "") { ShowWarning("Hãy chọn thuốc cần sửa."); return; }
@@ -113,6 +152,9 @@ namespace QuanLyNoiTru
             catch (Exception ex) { ShowError(ex); }
         }
 
+        /// <summary>
+        /// Xóa thuốc khỏi danh mục. Nếu thuốc đã được kê trong bất kỳ đơn thuốc nào thì hệ thống sẽ chặn xóa.
+        /// </summary>
         void btnXoa_Click(object s, EventArgs e)
         {
             if (txtMa.Text == "") { ShowWarning("Hãy chọn thuốc cần xóa."); return; }

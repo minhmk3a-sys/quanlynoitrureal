@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
@@ -7,21 +7,33 @@ using System.Windows.Forms;
 
 namespace QuanLyNoiTru
 {
-    /// <summary>Viện phí: tiền phòng = số ngày nằm x đơn giá phòng (tính cả ngày vào và ra, tối thiểu 1 ngày); tiền thuốc = tổng các đơn thuốc; tiền khám / dịch vụ nhập tay.</summary>
+    /// <summary>
+    /// Form quản lý Viện phí:
+    /// - Tính toán chi phí điều trị bao gồm:
+    ///   + Tiền phòng/giường = số ngày nằm x đơn giá (tính cả ngày vào và ngày ra, tối thiểu 1 ngày).
+    ///   + Tiền thuốc = tổng thành tiền của tất cả các đơn thuốc thuộc hồ sơ bệnh án.
+    ///   + Tiền khám và tiền dịch vụ kỹ thuật (có thể điều chỉnh thủ công hoặc nhập bổ sung).
+    /// - Cho phép lưu hóa đơn, cập nhật trạng thái 'Đã thanh toán', xuất hóa đơn ra file Excel và nhập dữ liệu từ file Excel.
+    /// </summary>
     public partial class VienPhiForm : BaseForm
     {
-        // dữ liệu tính toán hiện tại
+        // Các biến lưu thông tin tính toán chi phí hiện tại
         decimal tienPhong, tienThuoc;
         int soNgay;
         string maVP = "", trangThai = "Chưa lập";
         string maBN = "", tenBN = "", tenBS = "", tenPhong = "";
         DateTime vao;
         DateTime? ra;
-        bool loading;
+        bool loading; // Cờ kiểm soát tránh trigger sự kiện lặp khi nạp dữ liệu
 
+        /// <summary>
+        /// Khởi tạo giao diện form Viện phí, nạp danh sách hồ sơ nhập viện và liên kết các sự kiện UI.
+        /// </summary>
         public VienPhiForm()
         {
             InitializeComponent();   // dựng giao diện (code nằm trong VienPhiForm.Designer.cs)
+
+            // Nạp danh sách các hồ sơ nhập viện (loại trừ các ca đã hủy) vào ComboBox
             FillCombo(cmbNV,
                 DatabaseHelper.GetData(@"SELECT nv.MaNhapVien,
                                   nv.MaNhapVien + N' - ' + bn.HoTen + N' (' + nv.TrangThai + N')' AS Hien
@@ -31,9 +43,15 @@ namespace QuanLyNoiTru
                 "Hien", "MaNhapVien");
 
             LoadData();
+
+            // Đổi hồ sơ nhập viện -> tính toán lại viện phí và nạp số liệu đã lưu (nếu có)
             cmbNV.SelectedIndexChanged += (s, e) => Tinh(true);
+
+            // Khi người dùng thay đổi giá trị tiền khám hoặc tiền dịch vụ -> cập nhật lại tổng cộng
             nudKham.ValueChanged += (s, e) => UpdateTong();
             nudDV.ValueChanged += (s, e) => UpdateTong();
+
+            // Khi click chọn 1 dòng hóa đơn trên lưới -> đồng bộ chọn hồ sơ nhập viện tương ứng
             dgv.SelectionChanged += (s, e) =>
             {
                 var r = dgv.CurrentRow;
@@ -44,17 +62,27 @@ namespace QuanLyNoiTru
             Tinh(true);
         }
 
+        /// <summary>
+        /// Nút Tính tiền: tính lại theo dữ liệu thực tế hiện tại (không ghi đè số tiền khám/dịch vụ người dùng đang gõ).
+        /// </summary>
         void btnTinhTien_Click(object s, EventArgs e)
         {
             Tinh(false);
         }
 
+        /// <summary>
+        /// Nút Làm mới: tải lại danh sách hóa đơn và tính lại thông tin cho hồ sơ đang chọn.
+        /// </summary>
         void btnLamMoi_Click(object s, EventArgs e)
         {
             LoadData();
             Tinh(true);
         }
 
+        /// <summary>
+        /// Tải toàn bộ danh sách hóa đơn viện phí từ cơ sở dữ liệu lên DataGridView.
+        /// Định dạng tiền tệ kiểu số phân cách hàng nghìn (N0) và ngày giờ Việt Nam.
+        /// </summary>
         void LoadData()
         {
             dgv.DataSource = DatabaseHelper.GetData(
@@ -70,12 +98,19 @@ namespace QuanLyNoiTru
             FormatColumn(dgv, "Ngày lập", "dd/MM/yyyy HH:mm");
         }
 
-        /// <summary>Tính tiền phòng + thuốc từ dữ liệu. loadSaved = true: nạp luôn tiền khám/dịch vụ đã lưu.</summary>
+        /// <summary>
+        /// Tính toán tổng hợp tiền phòng, tiền thuốc và viện phí từ cơ sở dữ liệu.
+        /// </summary>
+        /// <param name="loadSaved">
+        /// Nếu true: nạp lại số tiền khám và dịch vụ đã lưu từ hóa đơn trước đó (nếu đã lưu).
+        /// Nếu false: giữ nguyên giá trị đang nhập trên giao diện.
+        /// </param>
         void Tinh(bool loadSaved)
         {
             string nv = GetValue(cmbNV);
             if (nv == null) return;
 
+            // Truy vấn thông tin ngày vào, ngày ra, đơn giá phòng và tổng tiền thuốc từ các đơn đã kê
             var dt = DatabaseHelper.GetData(
                 @"SELECT nv.NgayNhapVien, nv.NgayRaVien, bn.MaBN, bn.HoTen AS TenBN,
                          ISNULL(bs.HoTen, N'') AS TenBS, ISNULL(p.TenPhong, N'') AS TenPhong, ISNULL(p.DonGia, 0) AS DonGiaPhong,
@@ -101,19 +136,20 @@ namespace QuanLyNoiTru
             tenPhong = r["TenPhong"].ToString();
             decimal donGia = Convert.ToDecimal(r["DonGiaPhong"]);
 
+            // Tính số ngày nằm viện: tối thiểu 1 ngày
             DateTime den = ra ?? DateTime.Now;
             soNgay = Math.Max(1, (den.Date - vao.Date).Days + 1);
             tienPhong = soNgay * donGia;
             tienThuoc = Convert.ToDecimal(r["TienThuoc"]);
 
-            // hóa đơn đã lưu (nếu có)
+            // Kiểm tra xem hồ sơ này đã có hóa đơn VIENPHI trong CSDL chưa
             var vp = DatabaseHelper.GetData("SELECT MaVP, TienPhong, TienThuoc, TienKham, TienDichVu, TrangThai FROM VIENPHI WHERE MaNhapVien=@nv", DatabaseHelper.Param("@nv", nv));
             loading = true;
             if (vp.Rows.Count > 0)
             {
                 maVP = vp.Rows[0]["MaVP"].ToString();
                 trangThai = vp.Rows[0]["TrangThai"].ToString();
-                if (trangThai == "Đã thanh toán")   // đã thanh toán: giữ nguyên số liệu đã chốt
+                if (trangThai == "Đã thanh toán")   // Nếu đã thanh toán: giữ nguyên số liệu đã chốt
                 {
                     tienPhong = Convert.ToDecimal(vp.Rows[0]["TienPhong"]);
                     tienThuoc = Convert.ToDecimal(vp.Rows[0]["TienThuoc"]);
@@ -132,6 +168,7 @@ namespace QuanLyNoiTru
             }
             loading = false;
 
+            // Hiển thị các thông tin lên màn hình
             txtMaVP.Text = maVP;
             txtTrangThai.Text = trangThai;
             txtSoNgay.Text = soNgay.ToString();
@@ -141,12 +178,21 @@ namespace QuanLyNoiTru
             UpdateTong();
         }
 
+        /// <summary>
+        /// Tính và hiển thị tổng số tiền phải trả = Tiền phòng + Tiền thuốc + Tiền khám + Tiền dịch vụ.
+        /// </summary>
         void UpdateTong()
         {
             if (loading) return;
             txtTong.Text = Fmt.Money(tienPhong + tienThuoc + nudKham.Value + nudDV.Value);
         }
 
+        /// <summary>
+        /// Lưu hóa đơn viện phí:
+        /// - Nếu chưa có hóa đơn: Sinh mã mới (VP...) và INSERT.
+        /// - Nếu đã có hóa đơn: UPDATE lại các số tiền và ngày lập.
+        /// Lưu ý: Hóa đơn đã thanh toán sẽ bị khóa không cho sửa đổi.
+        /// </summary>
         void btnLuu_Click(object s, EventArgs e)
         {
             string nv = GetValue(cmbNV);
@@ -178,6 +224,9 @@ namespace QuanLyNoiTru
             catch (Exception ex) { ShowError(ex); }
         }
 
+        /// <summary>
+        /// Xác nhận thu tiền viện phí: Cập nhật trạng thái hóa đơn thành 'Đã thanh toán'.
+        /// </summary>
         void btnThanhToan_Click(object s, EventArgs e)
         {
             if (maVP == "") { ShowWarning("Chưa có hóa đơn. Hãy bấm \"Lưu hóa đơn\" trước."); return; }
@@ -192,6 +241,20 @@ namespace QuanLyNoiTru
             catch (Exception ex) { ShowError(ex); }
         }
 
+        /// <summary>
+        /// Xuất hóa đơn viện phí ra file bảng tính Microsoft Excel (.xlsx):
+        /// 
+        /// NGUYÊN LÝ HOẠT ĐỘNG DÀNH CHO NGƯỜI MỚI HỌC C#:
+        /// 1. Tinh(false) để đảm bảo toàn bộ số liệu viện phí (phòng, thuốc, khám, dịch vụ, tổng tiền) là số liệu mới nhất.
+        /// 2. Tạo một danh sách các chuỗi văn bản (List&lt;string&gt; L) định dạng từng dòng của hóa đơn viện phí:
+        ///    - Thông tin đơn vị, mã hóa đơn, ngày giờ lập hóa đơn.
+        ///    - Thông tin bệnh nhân: họ tên, mã BN, mã hồ sơ nhập viện, khoa phòng.
+        ///    - Bảng chi tiết: tiền phòng, tiền thuốc, tiền khám, tiền dịch vụ.
+        ///    - Tổng cộng và phần chữ ký xác nhận của các bên.
+        /// 3. Mở SaveFileDialog cho phép người dùng chọn thư mục và đặt tên file .xlsx cần lưu.
+        /// 4. Gọi Export.WriteTextXlsx(...) để đóng gói thành file Excel chuẩn OpenXML (file zip chứa XML).
+        /// 5. Sau khi xuất thành công, thông báo và tự động mở file bằng Microsoft Excel hoặc ứng dụng xem mặc định.
+        /// </summary>
         void btnInHoaDon_Click(object s, EventArgs e)
         {
             if (GetValue(cmbNV) == null) { ShowWarning("Hãy chọn hồ sơ nhập viện."); return; }
@@ -203,7 +266,7 @@ namespace QuanLyNoiTru
                 L.Add("#HÓA ĐƠN VIỆN PHÍ");
                 L.Add("");
                 L.Add("Mã hóa đơn : " + (maVP == "" ? "(chưa lưu)" : maVP));
-                L.Add("Ngày in    : " + DateTime.Now.ToString("dd/MM/yyyy HH:mm"));
+                L.Add("Ngày xuất  : " + DateTime.Now.ToString("dd/MM/yyyy HH:mm"));
                 L.Add("Người lập  : " + Session.FullName);
                 L.Add("Bệnh nhân  : " + tenBN + " (" + maBN + ")");
                 L.Add("Mã nhập viện: " + GetValue(cmbNV));
@@ -224,11 +287,52 @@ namespace QuanLyNoiTru
                 L.Add("      Người nộp tiền                     Người lập hóa đơn");
                 L.Add("      (ký, ghi rõ họ tên)                (ký, ghi rõ họ tên)");
 
-                Export.Preview(Export.TextDoc(L), "Hóa đơn viện phí");
+                using (var dlg = new SaveFileDialog
+                {
+                    Filter = "Excel (*.xlsx)|*.xlsx",
+                    FileName = "HoaDon_" + (maVP == "" ? GetValue(cmbNV) : maVP) + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".xlsx",
+                    Title = "Chọn nơi lưu hóa đơn Excel"
+                })
+                {
+                    if (dlg.ShowDialog() != DialogResult.OK) return;
+                    Export.WriteTextXlsx(dlg.FileName, L, "HoaDonVienPhi");
+                    ShowInfo("Đã xuất hóa đơn ra file Excel thành công:\n" + dlg.FileName);
+                    Export.TryOpen(dlg.FileName);
+                }
             }
             catch (Exception ex) { ShowError(ex); }
         }
 
+        /// <summary>
+        /// Nút Nhập Excel: Mở hộp thoại chọn tệp bảng tính Excel (.xlsx) từ máy tính và nạp dữ liệu lên bảng DataGridView.
+        /// 
+        /// NGUYÊN LÝ HOẠT ĐỘNG DÀNH CHO NGƯỜI MỚI HỌC C#:
+        /// 1. Mở OpenFileDialog qua hàm Export.ImportExcelDialog() để người dùng chọn tệp .xlsx cần nhập.
+        /// 2. Hệ thống giải nén tệp zip .xlsx, trích xuất dữ liệu XML trong 'sheet1.xml' và đưa vào một DataTable.
+        /// 3. Nếu đọc thành công (DataTable khác null):
+        ///    - Gán DataTable làm DataSource cho DataGridView (dgv.DataSource = dt).
+        ///    - Thông báo số dòng đã nhập thành công để người dùng kiểm tra số lượng bản ghi.
+        /// </summary>
+        void btnNhapExcel_Click(object s, EventArgs e)
+        {
+            try
+            {
+                var dt = Export.ImportExcelDialog();
+                if (dt != null)
+                {
+                    dgv.DataSource = dt;
+                    ShowInfo("Đã nhập thành công " + dt.Rows.Count + " dòng từ file Excel!");
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError(ex);
+            }
+        }
+
+        /// <summary>
+        /// Hàm tiện ích căn lề chuỗi văn bản cho dòng hóa đơn (cột tên căn trái, số tiền căn phải).
+        /// </summary>
         static string Row(string label, decimal amount)
         {
             return label.PadRight(32) + Fmt.Money(amount).PadLeft(28);
