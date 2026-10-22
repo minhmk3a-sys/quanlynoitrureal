@@ -1,82 +1,118 @@
+using QuanLyNoiTru.dotnet;
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.Drawing;
 using System.Windows.Forms;
 
 namespace QuanLyNoiTru
 {
     /// <summary>
-    /// Chức năng Xuất viện hoàn chỉnh (PRD B4 & BR07):
-    /// - Quản lý danh sách bệnh nhân xuất viện
-    /// - Bảng tổng hợp chi phí (tiền giường, tiền thuốc, tiền dịch vụ, BHYT trả, BN trả)
-    /// - Bắt buộc thanh toán 100% viện phí trước khi cho xuất viện
-    /// - Khi hoàn tất xuất viện: tự động trả giường về Trống và cập nhật trạng thái bệnh nhân
-    /// 
-    /// ====================================================================================================
-    /// 📚 HƯỚNG DẪN DÀNH CHO NGƯỜI MỚI HỌC C#: QUY TRÌNH XUẤT VIỆN, TỔNG HỢP CHI PHÍ VÀ QUY TẮC BR07
-    /// ====================================================================================================
-    /// 1. CÔNG THỨC VÀ NGUYÊN TẮC TÍNH CHI PHÍ ĐIỀU TRỊ:
-    ///    - Số ngày nằm viện: Tính bằng (Ngày ra - Ngày vào). Nếu bệnh nhân vào và ra trong cùng một ngày
-    ///      thì theo quy định y tế vẫn tính tối thiểu là 1 ngày: soNgayNam = Math.Max(1, diffDays).
-    ///    - Tiền giường: Số ngày nằm x Đơn giá giường (lấy từ bảng GIUONG, nếu bằng 0 lấy từ bảng PHONG).
-    ///    - Tiền thuốc: Dùng câu lệnh SQL con (Subquery / JOIN) tính tổng thành tiền tất cả các đơn thuốc
-    ///      đã kê trong suốt đợt điều trị của hồ sơ nhập viện này:
-    ///         SELECT SUM(ct.ThanhTien) FROM CT_DONTHUOC ct JOIN DONTHUOC dt ... JOIN BENHAN ba ... WHERE ba.MaNhapVien = @nv
-    ///    - Tiền dịch vụ: Tổng các dịch vụ kỹ thuật (xét nghiệm, siêu âm, phẫu thuật...).
-    ///    - Phần BHYT chi trả: Nếu bệnh nhân có thẻ BHYT, hệ thống tự động tính phần quỹ BHYT chi trả
-    ///      (80% tiền giường chuẩn, và theo % BHYT của từng loại thuốc/dịch vụ).
-    ///    - Bệnh nhân tự trả = Math.Max(0, Tổng tiền - BHYT chi trả).
-    /// 
-    /// 2. QUY TẮC BẢO VỆ BR07 (BẮT BUỘC THANH TOÁN 100%):
-    ///    - Trong hàm 'btnHoanTatXuatVien_Click', hệ thống kiểm tra:
-    ///         if (trangThaiVP != "Đã thanh toán") { Cảnh báo chặn lại; return; }
-    ///    - Bệnh nhân không thể xuất viện nếu chưa thanh toán đầy đủ các khoản viện phí.
-    /// 
-    /// 3. TRANSACTION ĐỒNG BỘ 3 BẢNG KHI XUẤT VIỆN THÀNH CÔNG:
-    ///    - Bảng NHAPVIEN: Cập nhật TrangThai = N'Đã xuất viện' và lưu NgayRaVien chính xác.
-    ///    - Bảng GIUONG: Cập nhật TrangThai = N'Trống' để giải phóng giường ngay lập tức cho ca tiếp theo.
-    ///    - Bảng BENHNHAN: Cập nhật TrangThai = N'Đã xuất viện'.
-    ///    - Cả 3 thao tác này gói gọn trong 1 Transaction để đảm bảo không bao giờ bị lệch dữ liệu.
-    /// ====================================================================================================
+    /// FORM XUẤT VIỆN
+    /// -----------------------------------------------------------------------
+    /// Quy trình của form này gồm 3 bước, tương ứng với 3 nút bấm:
+    ///   Bước 1. [Lưu viện phí]       : tính tiền giường + thuốc + dịch vụ rồi lưu vào bảng VIENPHI.
+    ///   Bước 2. [Thanh toán]         : đánh dấu viện phí là "Đã thanh toán".
+    ///   Bước 3. [Hoàn tất xuất viện] : chỉ cho phép khi đã thanh toán đủ; sau đó
+    ///                                  trả giường về "Trống" và đổi trạng thái bệnh nhân.
+    ///
+    /// Công thức tính tiền:
+    ///   - Số ngày nằm = Ngày ra - Ngày vào (tối thiểu 1 ngày).
+    ///   - Tiền giường = Số ngày nằm x Đơn giá giường (nếu giường chưa có giá thì lấy giá phòng).
+    ///   - Tiền thuốc  = tổng thành tiền của mọi đơn thuốc trong đợt điều trị.
+    ///   - Tiền dịch vụ = tổng (số lượng x đơn giá) trong lịch điều trị.
+    ///   - Bảo hiểm trả = 80% tiền giường (nếu có thẻ BHYT) + phần % BH của từng thuốc + từng dịch vụ.
+    ///   - Bệnh nhân trả = Tổng tiền - Bảo hiểm trả.
     /// </summary>
     public partial class XuatVienForm : BaseForm
     {
-        // Thông tin ca nhập viện đang chọn
-        string maNV = "", maBN = "", tenBN = "", maGiuong = "", tenGiuong = "", tenPhong = "", tenKhoa = "";
-        DateTime ngayVao;
-        int soNgayNam = 1;
-        decimal tienGiuong = 0, tienThuoc = 0, tienDichVu = 0, tienKham = 0;
-        decimal bhGiuong = 0, bhThuoc = 0, bhDichVu = 0;
-        decimal tongTien = 0, tongBHTra = 0, tongBNTra = 0;
-        string trangThaiNV = "", trangThaiVP = "Chưa thanh toán";
+        // =====================================================================
+        // 1. HẰNG SỐ VÀ BIẾN DÙNG CHUNG
+        // =====================================================================
 
+        // "const" = hằng số, giá trị không bao giờ thay đổi.
+        // Đặt tên cho các chuỗi trạng thái để khỏi gõ sai chính tả nhiều lần trong code.
+        const string DANG_DIEU_TRI = "Đang điều trị";
+        const string CHO_THANH_TOAN = "Chờ thanh toán";
+        const string DA_XUAT_VIEN = "Đã xuất viện";
+        const string DA_THANH_TOAN = "Đã thanh toán";
+        const string CHUA_THANH_TOAN = "Chưa thanh toán";
+
+        // Các "biến thành viên" (field): sống suốt thời gian form mở,
+        // nên mọi hàm trong form đều đọc / ghi được.
+        // Chúng lưu thông tin của hồ sơ nhập viện đang được chọn trong bảng.
+        string maNV = "";        // mã hồ sơ nhập viện (khóa chính bảng NHAPVIEN)
+        string maBN = "";        // mã bệnh nhân
+        string tenBN = "";       // tên bệnh nhân
+        string maGiuong = "";    // mã giường (dùng để trả giường về Trống)
+        string tenGiuong = "";
+        string tenPhong = "";
+        string tenKhoa = "";
+        string trangThaiNV = ""; // trạng thái hồ sơ nhập viện
+        string trangThaiVP = CHUA_THANH_TOAN; // trạng thái viện phí
+        DateTime ngayVao;        // ngày giờ nhập viện
+        int soNgayNam = 1;       // số ngày nằm viện
+
+        // Các khoản tiền. "decimal" là kiểu số dành cho tiền (chính xác, không sai số lẻ).
+        decimal tienGiuong = 0;
+        decimal tienThuoc = 0;
+        decimal tienDichVu = 0;
+        decimal tienKham = 0;    // hiện chưa dùng nên luôn bằng 0, nhưng bảng VIENPHI có cột này
+        decimal tongTien = 0;    // tổng chi phí
+        decimal tongBHTra = 0;   // phần bảo hiểm chi trả
+        decimal tongBNTra = 0;   // phần bệnh nhân phải trả
+
+        // Cờ (true/false) báo "đang nạp dữ liệu lên màn hình".
+        // Dùng để các sự kiện không chạy lặp lại không cần thiết.
+        bool dangNap = false;
+
+        // =====================================================================
+        // 2. KHỞI TẠO FORM
+        // =====================================================================
+
+        /// <summary>
+        /// Hàm khởi tạo (constructor): chạy 1 lần khi form được mở.
+        /// </summary>
         public XuatVienForm()
         {
-            InitializeComponent();
-            dtpNgayRa.Value = DateTime.Now;
+            InitializeComponent();           // dựng giao diện (code nằm trong file Designer)
+            dtpNgayRa.Value = DateTime.Now;  // ngày ra viện mặc định là hôm nay
+            LoadDanhSach();                  // nạp danh sách hồ sơ lên bảng
 
-            LoadDanhSach();
-            dgv.SelectionChanged += (s, e) => ChonDong();
-            dtpNgayRa.ValueChanged += (s, e) => TinhChiPhi();
+            // Gắn sự kiện bằng "lambda" (s, e) => ...
+            // Hiểu đơn giản: "khi có chuyện gì xảy ra thì chạy đoạn code bên phải mũi tên".
+            dgv.SelectionChanged += (s, e) => ChonDong();                      // đổi dòng chọn
+            dtpNgayRa.ValueChanged += (s, e) => { if (!dangNap) TinhChiPhi(); }; // đổi ngày ra
 
-            // Nhấn Enter trong ô tìm kiếm để thực hiện tìm kiếm
-            KeyEventHandler onEnter = (s, e) => { if (e.KeyCode == Keys.Enter) LoadDanhSach(); };
-            txtTimMa.KeyDown += onEnter;
-            txtTimBN.KeyDown += onEnter;
+            // Nhấn phím Enter trong ô tìm kiếm thì tìm luôn, khỏi bấm nút.
+            KeyEventHandler khiNhanPhim = (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter) LoadDanhSach();
+            };
+            txtTimMa.KeyDown += khiNhanPhim;
+            txtTimBN.KeyDown += khiNhanPhim;
         }
 
         /// <summary>
-        /// Nút [🔍 Tìm kiếm]: Thực hiện lọc danh sách theo các điều kiện đã nhập.
+        /// Designer đang gắn sự kiện này vào giao diện nên phải GIỮ LẠI (nếu xóa sẽ báo lỗi).
+        /// Hàm để trống vì không cần làm gì.
         /// </summary>
+        private void pnlTopList_Paint(object sender, PaintEventArgs e)
+        {
+        }
+
+        // =====================================================================
+        // 3. NÚT TÌM KIẾM
+        // =====================================================================
+
+        /// <summary>Nút [Tìm kiếm]: nạp lại danh sách theo điều kiện đã nhập.</summary>
         void btnTimKiem_Click(object sender, EventArgs e)
         {
             LoadDanhSach();
         }
 
-        /// <summary>
-        /// Nút [🔄 Làm mới] ở thanh tìm kiếm: Xóa các ô tìm kiếm và nạp lại toàn bộ danh sách.
-        /// </summary>
+        /// <summary>Nút [Làm mới]: xóa chữ trong 2 ô tìm kiếm rồi nạp lại toàn bộ danh sách.</summary>
         void btnLamMoiTim_Click(object sender, EventArgs e)
         {
             txtTimMa.Text = "";
@@ -84,20 +120,26 @@ namespace QuanLyNoiTru
             LoadDanhSach();
         }
 
-        // ====================================================================
-        // 1. TẢI DỮ LIỆU
-        // ====================================================================
+        // =====================================================================
+        // 4. NẠP DANH SÁCH VÀ CHỌN DÒNG
+        // =====================================================================
 
         /// <summary>
-        /// Tải danh sách bệnh nhân nhập viện cùng thông tin viện phí theo các tiêu chí tìm kiếm kết hợp.
+        /// Lấy danh sách hồ sơ nhập viện (kèm thông tin viện phí) từ SQL và hiện lên bảng dgv.
+        /// Có lọc theo ô "mã hồ sơ" và ô "tên / mã bệnh nhân" nếu người dùng có nhập.
         /// </summary>
         void LoadDanhSach()
         {
+            // Nhớ hồ sơ đang chọn. Sau khi nạp lại bảng, ta chọn lại đúng dòng này.
+            // (Nếu không, bảng tự nhảy về dòng đầu tiên và có thể thao tác nhầm sang bệnh nhân khác!)
+            string maDangChon = maNV;
+
             string sql = @"
                 SELECT nv.MaNhapVien AS [Mã NV], bn.MaBN AS [Mã BN], bn.HoTen AS [Bệnh nhân],
                        bn.BHYT AS [Số thẻ BHYT], k.TenKhoa AS [Khoa], p.TenPhong AS [Phòng],
-                       g.TenGiuong AS [Giường], g.MaGiuong, nv.NgayNhapVien AS [Ngày vào],
-                       nv.NgayRaVien AS [Ngày ra], nv.TrangThai AS [Trạng thái NV],
+                       g.TenGiuong AS [Giường], g.MaGiuong,
+                       nv.NgayNhapVien AS [Ngày vào], nv.NgayRaVien AS [Ngày ra],
+                       nv.TrangThai AS [Trạng thái NV],
                        ISNULL(vp.TrangThai, N'Chưa lập VP') AS [Trạng thái viện phí],
                        ISNULL(vp.TongTien, 0) AS [Tổng tiền]
                 FROM NHAPVIEN nv
@@ -106,40 +148,62 @@ namespace QuanLyNoiTru
                 LEFT JOIN PHONG p ON p.MaPhong = g.MaPhong
                 LEFT JOIN KHOA k ON k.MaKhoa = p.MaKhoa
                 LEFT JOIN VIENPHI vp ON vp.MaNhapVien = nv.MaNhapVien
-                WHERE 1=1 ";
+                WHERE 1=1 ";   // "1=1" luôn đúng, để phía dưới nối thêm " AND ..." cho dễ
 
+            // List<SqlParameter> = danh sách tham số của câu SQL (truyền tham số giúp tránh lỗi bảo mật SQL Injection).
             var ps = new List<SqlParameter>();
 
+            // Nếu ô "mã hồ sơ" có chữ thì nối thêm điều kiện lọc.
             if (!string.IsNullOrWhiteSpace(txtTimMa.Text))
             {
                 sql += " AND nv.MaNhapVien LIKE @maNV ";
                 ps.Add(DatabaseHelper.Param("@maNV", "%" + txtTimMa.Text.Trim() + "%"));
             }
 
+            // Nếu ô "bệnh nhân" có chữ thì lọc theo tên hoặc mã bệnh nhân.
             if (!string.IsNullOrWhiteSpace(txtTimBN.Text))
             {
                 sql += " AND (bn.HoTen LIKE @bn OR bn.MaBN LIKE @bn) ";
                 ps.Add(DatabaseHelper.Param("@bn", "%" + txtTimBN.Text.Trim() + "%"));
             }
 
-            sql += @" ORDER BY CASE WHEN nv.TrangThai = N'Đang điều trị' THEN 1 
-                               WHEN nv.TrangThai = N'Chờ thanh toán' THEN 2 ELSE 3 END,
-                          nv.NgayNhapVien DESC";
+            // Sắp xếp: đang điều trị lên đầu, rồi chờ thanh toán, rồi các hồ sơ còn lại; mới nhất trước.
+            sql += @" ORDER BY CASE WHEN nv.TrangThai = N'Đang điều trị' THEN 1
+                                    WHEN nv.TrangThai = N'Chờ thanh toán' THEN 2
+                                    ELSE 3 END,
+                               nv.NgayNhapVien DESC";
 
             dgv.DataSource = DatabaseHelper.GetData(sql, ps.ToArray());
             FormatColumn(dgv, "Ngày vào", "dd/MM/yyyy HH:mm");
             FormatColumn(dgv, "Ngày ra", "dd/MM/yyyy HH:mm");
             FormatColumn(dgv, "Tổng tiền", "N0");
+
+            // Chọn lại đúng dòng lúc nãy (nếu dòng đó vẫn còn trong kết quả).
+            if (maDangChon != "")
+            {
+                foreach (DataGridViewRow dong in dgv.Rows)
+                {
+                    if (GetText(dong, "Mã NV") == maDangChon)
+                    {
+                        dgv.CurrentCell = dong.Cells[0];
+                        break;   // tìm thấy rồi thì thoát vòng lặp
+                    }
+                }
+            }
         }
 
         /// <summary>
-/// Xử lý khi người dùng chọn một dòng trong DataGridView, đồng thời gán các thông tin của hồ sơ nhập viện vào các trường hiển thị.
-/// </summary>
-void ChonDong()
+        /// Chạy mỗi khi người dùng bấm chọn một dòng trong bảng:
+        /// lấy thông tin của dòng đó đưa vào các ô bên trên, rồi tính lại chi phí.
+        /// </summary>
+        void ChonDong()
         {
-            var r = dgv.CurrentRow;
-            if (r == null) return;
+            var r = dgv.CurrentRow;      // dòng đang chọn
+            if (r == null) return;       // chưa chọn dòng nào thì thôi
 
+            dangNap = true;              // bật cờ: đang nạp, đừng tính toán lặp
+
+            // GetText(dòng, "tên cột") = lấy chữ trong một ô của dòng.
             maNV = GetText(r, "Mã NV");
             maBN = GetText(r, "Mã BN");
             tenBN = GetText(r, "Bệnh nhân");
@@ -149,108 +213,79 @@ void ChonDong()
             tenKhoa = GetText(r, "Khoa");
             trangThaiNV = GetText(r, "Trạng thái NV");
 
+            // Đưa lên các ô trên màn hình.
             txtMaNV.Text = maNV;
             txtTenBN.Text = tenBN + " (" + maBN + ")";
             txtBHYT.Text = GetText(r, "Số thẻ BHYT");
             txtKhoaPhong.Text = tenKhoa + " - " + tenPhong + " (" + tenGiuong + ")";
             lblTrangThaiNV.Text = trangThaiNV;
 
-            object v = r.Cells["Ngày vào"].Value;
-            if (v is DateTime) ngayVao = (DateTime)v;
+            // Ngày vào: kiểm tra ô có phải kiểu ngày giờ không rồi mới lấy ("is" = kiểm tra kiểu dữ liệu).
+            object giaTriVao = r.Cells["Ngày vào"].Value;
+            if (giaTriVao is DateTime) ngayVao = (DateTime)giaTriVao;
             else ngayVao = DateTime.Today;
-
             txtNgayVao.Text = ngayVao.ToString("dd/MM/yyyy HH:mm");
 
-            object rVal = r.Cells["Ngày ra"].Value;
-            if (rVal is DateTime) dtpNgayRa.Value = (DateTime)rVal;
+            // Ngày ra: nếu hồ sơ đã có ngày ra thì dùng, chưa có thì lấy giờ hiện tại.
+            object giaTriRa = r.Cells["Ngày ra"].Value;
+            if (giaTriRa is DateTime) dtpNgayRa.Value = (DateTime)giaTriRa;
             else dtpNgayRa.Value = DateTime.Now;
 
+            dangNap = false;             // tắt cờ
             TinhChiPhi();
         }
 
-        // ====================================================================
-        // 2. TÍNH TOÁN CHI PHÍ XUẤT VIỆN (PRD B4 & 11.1)
-        // ====================================================================
+        // =====================================================================
+        // 5. TÍNH CHI PHÍ
+        // =====================================================================
 
         /// <summary>
-/// Tính toán chi phí xuất viện dựa trên ngày ra, ngày vào, và các khoản chi phí (giường, thuốc, dịch vụ, khám).
-/// Cập nhật các trường hiển thị và trạng thái viện phí.
-/// </summary>
-void TinhChiPhi()
+        /// Tính tiền giường, thuốc, dịch vụ, bảo hiểm và hiện kết quả lên màn hình.
+        /// </summary>
+        void TinhChiPhi()
         {
-            if (string.IsNullOrEmpty(maNV)) return;
+            if (maNV == "") return;   // chưa chọn hồ sơ thì chưa tính
 
+            // --- a) Số ngày nằm viện ---
             DateTime ngayRa = dtpNgayRa.Value;
-            if (ngayRa < ngayVao) ngayRa = ngayVao;
+            if (ngayRa < ngayVao) ngayRa = ngayVao;           // ngày ra không được trước ngày vào
+            int soNgayChenh = (ngayRa.Date - ngayVao.Date).Days;
+            soNgayNam = Math.Max(1, soNgayChenh);             // Math.Max lấy số lớn hơn => tối thiểu 1 ngày
+            txtSoNgayNam.Text = soNgayNam + " ngày";
 
-            // Số ngày nằm viện theo PRD: Ngày xuất - Ngày nhập (tối thiểu 1 ngày nếu ra cùng ngày)
-            int diffDays = (ngayRa.Date - ngayVao.Date).Days;
-            soNgayNam = Math.Max(1, diffDays);
-            txtSoNgayNam.Text = soNgayNam.ToString() + " ngày";
+            // --- b) Tiền giường ---
+            tienGiuong = soNgayNam * LayDonGiaGiuong();
 
-            // Đơn giá giường: lấy đơn giá giường, nếu = 0 thì lấy đơn giá phòng
-            decimal donGiaGiuong = 0;
-            var dtG = DatabaseHelper.GetData(@"
-                SELECT CASE WHEN ISNULL(g.DonGia, 0) > 0 THEN g.DonGia ELSE ISNULL(p.DonGia, 0) END AS DonGiaApDung
-                FROM NHAPVIEN nv
-                LEFT JOIN GIUONG g ON g.MaGiuong = nv.MaGiuong
-                LEFT JOIN PHONG p ON p.MaPhong = g.MaPhong
-                WHERE nv.MaNhapVien = @nv", DatabaseHelper.Param("@nv", maNV));
-
-            if (dtG.Rows.Count > 0 && dtG.Rows[0]["DonGiaApDung"] != DBNull.Value)
-                donGiaGiuong = Convert.ToDecimal(dtG.Rows[0]["DonGiaApDung"]);
-
-            tienGiuong = soNgayNam * donGiaGiuong;
-
-            // BHYT: Nếu có thẻ BHYT thì được giảm theo quy định (mặc định 80% phần giường chuẩn)
+            // Có số thẻ BHYT (ô không rỗng) thì bảo hiểm trả 80% tiền giường.
+            // "a ? b : c" là phép chọn nhanh: nếu a đúng thì lấy b, ngược lại lấy c.
             bool coBHYT = !string.IsNullOrWhiteSpace(txtBHYT.Text);
-            bhGiuong = coBHYT ? (tienGiuong * 0.8m) : 0;
+            decimal bhGiuong = coBHYT ? tienGiuong * 0.8m : 0;   // chữ "m" báo đây là số kiểu decimal
 
-            // Tiền thuốc: Lấy từ các đơn thuốc đã kê
-            var dtThuoc = DatabaseHelper.GetData(@"
-                SELECT ISNULL(SUM(ct.ThanhTien), 0) AS TongTienThuoc,
-                       ISNULL(SUM(ct.ThanhTien * ISNULL(t.PT_BaoHiem, 0) / 100.0), 0) AS BHTienThuoc
-                FROM CT_DONTHUOC ct
-                JOIN THUOC t ON t.MaThuoc = ct.MaThuoc
-                JOIN DONTHUOC dt ON dt.MaDon = ct.MaDon
-                JOIN BENHAN ba ON ba.MaBA = dt.MaBA
-                WHERE ba.MaNhapVien = @nv", DatabaseHelper.Param("@nv", maNV));
+            // --- c) Tiền thuốc: cộng thành tiền mọi dòng thuốc trong các đơn của hồ sơ này ---
+            decimal bhThuoc;
+            DocTong(@"SELECT ISNULL(SUM(ct.ThanhTien), 0) AS Tong,
+                             ISNULL(SUM(ct.ThanhTien * ISNULL(t.PT_BaoHiem, 0) / 100.0), 0) AS BH
+                      FROM CT_DONTHUOC ct
+                      JOIN THUOC t ON t.MaThuoc = ct.MaThuoc
+                      JOIN DONTHUOC dt ON dt.MaDon = ct.MaDon
+                      JOIN BENHAN ba ON ba.MaBA = dt.MaBA
+                      WHERE ba.MaNhapVien = @nv",
+                    out tienThuoc, out bhThuoc);
 
-            if (dtThuoc.Rows.Count > 0)
-            {
-                tienThuoc = Convert.ToDecimal(dtThuoc.Rows[0]["TongTienThuoc"]);
-                bhThuoc = Convert.ToDecimal(dtThuoc.Rows[0]["BHTienThuoc"]);
-            }
-            else
-            {
-                tienThuoc = 0;
-                bhThuoc = 0;
-            }
+            // --- d) Tiền dịch vụ: cộng trong lịch điều trị ---
+            decimal bhDichVu;
+            DocTong(@"SELECT ISNULL(SUM(ldt.SoLuong * ldt.DonGia), 0) AS Tong,
+                             ISNULL(SUM(ldt.SoLuong * ldt.DonGia * ISNULL(ldt.PT_BaoHiem, 0) / 100.0), 0) AS BH
+                      FROM LICH_DIEU_TRI ldt
+                      WHERE ldt.MaNhapVien = @nv",
+                    out tienDichVu, out bhDichVu);
 
-            // Tiền dịch vụ: Lấy từ bảng LICH_DIEU_TRI (nếu có)
-            var dtDV = DatabaseHelper.GetData(@"
-                SELECT ISNULL(SUM(ldt.SoLuong * ldt.DonGia), 0) AS TongDV,
-                       ISNULL(SUM(ldt.SoLuong * ldt.DonGia * ISNULL(ldt.PT_BaoHiem, 0) / 100.0), 0) AS BHTienDV
-                FROM LICH_DIEU_TRI ldt
-                WHERE ldt.MaNhapVien = @nv", DatabaseHelper.Param("@nv", maNV));
-
-            if (dtDV.Rows.Count > 0)
-            {
-                tienDichVu = Convert.ToDecimal(dtDV.Rows[0]["TongDV"]);
-                bhDichVu = Convert.ToDecimal(dtDV.Rows[0]["BHTienDV"]);
-            }
-            else
-            {
-                tienDichVu = 0;
-                bhDichVu = 0;
-            }
-
-            // Tổng hợp
+            // --- e) Tổng hợp ---
             tongTien = tienGiuong + tienThuoc + tienDichVu + tienKham;
             tongBHTra = bhGiuong + bhThuoc + bhDichVu;
-            tongBNTra = Math.Max(0, tongTien - tongBHTra);
+            tongBNTra = Math.Max(0, tongTien - tongBHTra);   // không để số âm
 
-            // Hiển thị lên giao diện
+            // --- f) Hiện lên màn hình (Fmt.Money đổi số thành dạng tiền, ví dụ 1.500.000 đ) ---
             txtTienGiuong.Text = Fmt.Money(tienGiuong);
             txtTienThuoc.Text = Fmt.Money(tienThuoc);
             txtTienDichVu.Text = Fmt.Money(tienDichVu);
@@ -258,170 +293,238 @@ void TinhChiPhi()
             txtBHTra.Text = Fmt.Money(tongBHTra);
             txtBNTra.Text = Fmt.Money(tongBNTra);
 
-            // Kiểm tra trạng thái viện phí từ database
-            var dtVP = DatabaseHelper.GetData(
-                "SELECT TrangThai, BNTra, TongTien FROM VIENPHI WHERE MaNhapVien = @nv",
+            // --- g) Trạng thái viện phí lấy từ database (chưa có hóa đơn thì coi là chưa thanh toán) ---
+            DataTable dtVP = DatabaseHelper.GetData(
+                "SELECT TrangThai FROM VIENPHI WHERE MaNhapVien = @nv",
                 DatabaseHelper.Param("@nv", maNV));
+            if (dtVP.Rows.Count > 0) trangThaiVP = dtVP.Rows[0]["TrangThai"].ToString();
+            else trangThaiVP = CHUA_THANH_TOAN;
 
-            if (dtVP.Rows.Count > 0)
+            lblTrangThaiVP.Text = trangThaiVP;
+            lblTrangThaiVP.ForeColor = (trangThaiVP == DA_THANH_TOAN) ? Color.Green : Color.Red;
+        }
+
+        /// <summary>
+        /// Lấy đơn giá giường / ngày: dùng giá của giường, nếu giường chưa có giá (bằng 0) thì dùng giá của phòng.
+        /// </summary>
+        decimal LayDonGiaGiuong()
+        {
+            DataTable dt = DatabaseHelper.GetData(@"
+                SELECT CASE WHEN ISNULL(g.DonGia, 0) > 0 THEN g.DonGia ELSE ISNULL(p.DonGia, 0) END AS DonGiaApDung
+                FROM NHAPVIEN nv
+                LEFT JOIN GIUONG g ON g.MaGiuong = nv.MaGiuong
+                LEFT JOIN PHONG p ON p.MaPhong = g.MaPhong
+                WHERE nv.MaNhapVien = @nv", DatabaseHelper.Param("@nv", maNV));
+
+            if (dt.Rows.Count > 0 && dt.Rows[0]["DonGiaApDung"] != DBNull.Value)
+                return Convert.ToDecimal(dt.Rows[0]["DonGiaApDung"]);
+            return 0;
+        }
+
+        /// <summary>
+        /// Chạy một câu SQL trả về 2 cột: "Tong" (tổng tiền) và "BH" (phần bảo hiểm trả).
+        /// Dùng từ khóa "out" để hàm trả về cùng lúc 2 giá trị: tong và bh.
+        /// (Biến "out" bắt buộc phải được gán giá trị trước khi hàm kết thúc.)
+        /// </summary>
+        void DocTong(string sql, out decimal tong, out decimal bh)
+        {
+            tong = 0;
+            bh = 0;
+            DataTable dt = DatabaseHelper.GetData(sql, DatabaseHelper.Param("@nv", maNV));
+            if (dt.Rows.Count > 0)
             {
-                trangThaiVP = dtVP.Rows[0]["TrangThai"].ToString();
+                tong = Convert.ToDecimal(dt.Rows[0]["Tong"]);
+                bh = Convert.ToDecimal(dt.Rows[0]["BH"]);
+            }
+        }
+
+        // =====================================================================
+        // 6. BƯỚC 1: LƯU VIỆN PHÍ
+        // =====================================================================
+
+        /// <summary>
+        /// Tính lại chi phí rồi ghi vào bảng VIENPHI (chưa có thì INSERT, có rồi thì UPDATE).
+        /// Nếu hồ sơ đang "Đang điều trị" thì chuyển sang "Chờ thanh toán".
+        /// Hàm này không hiện thông báo; các nút bấm bên dưới sẽ tự hiện.
+        /// </summary>
+        void LuuVienPhi()
+        {
+            TinhChiPhi();   // luôn tính lại cho số liệu mới nhất
+
+            // Kiểm tra hồ sơ này đã có dòng trong bảng VIENPHI chưa.
+            bool daCo = DatabaseHelper.Exists("SELECT 1 FROM VIENPHI WHERE MaNhapVien = @nv",
+                                              DatabaseHelper.Param("@nv", maNV));
+            if (!daCo)
+            {
+                // Chưa có: thêm mới với mã tự sinh (VP01, VP02...).
+                string maVP = DatabaseHelper.NextId("VIENPHI", "MaVP", "VP");
+                DatabaseHelper.ExecuteNonQuery(@"
+                    INSERT INTO VIENPHI(MaVP, MaNhapVien, NgayLap, SoNgay, TienPhong, TienThuoc, TienKham,
+                                        TienDichVu, TongTien, BHTra, BNTra, TrangThai)
+                    VALUES(@mvp, @nv, GETDATE(), @sn, @tp, @tt, @tk, @tdv, @tong, @bh, @bn, N'Chưa thanh toán')",
+                    DatabaseHelper.Param("@mvp", maVP), DatabaseHelper.Param("@nv", maNV),
+                    DatabaseHelper.Param("@sn", soNgayNam), DatabaseHelper.Param("@tp", tienGiuong),
+                    DatabaseHelper.Param("@tt", tienThuoc), DatabaseHelper.Param("@tk", tienKham),
+                    DatabaseHelper.Param("@tdv", tienDichVu), DatabaseHelper.Param("@tong", tongTien),
+                    DatabaseHelper.Param("@bh", tongBHTra), DatabaseHelper.Param("@bn", tongBNTra));
             }
             else
             {
-                trangThaiVP = "Chưa thanh toán";
+                // Có rồi: cập nhật số liệu mới.
+                DatabaseHelper.ExecuteNonQuery(@"
+                    UPDATE VIENPHI
+                    SET SoNgay = @sn, TienPhong = @tp, TienThuoc = @tt, TienKham = @tk, TienDichVu = @tdv,
+                        TongTien = @tong, BHTra = @bh, BNTra = @bn, NgayLap = GETDATE()
+                    WHERE MaNhapVien = @nv",
+                    DatabaseHelper.Param("@sn", soNgayNam), DatabaseHelper.Param("@tp", tienGiuong),
+                    DatabaseHelper.Param("@tt", tienThuoc), DatabaseHelper.Param("@tk", tienKham),
+                    DatabaseHelper.Param("@tdv", tienDichVu), DatabaseHelper.Param("@tong", tongTien),
+                    DatabaseHelper.Param("@bh", tongBHTra), DatabaseHelper.Param("@bn", tongBNTra),
+                    DatabaseHelper.Param("@nv", maNV));
             }
 
-            lblTrangThaiVP.Text = trangThaiVP;
-            lblTrangThaiVP.ForeColor = (trangThaiVP == "Đã thanh toán") ? System.Drawing.Color.Green : System.Drawing.Color.Red;
+            // Đang điều trị => chuyển sang chờ thanh toán.
+            if (trangThaiNV == DANG_DIEU_TRI)
+            {
+                DatabaseHelper.ExecuteNonQuery(
+                    "UPDATE NHAPVIEN SET TrangThai = N'Chờ thanh toán' WHERE MaNhapVien = @nv",
+                    DatabaseHelper.Param("@nv", maNV));
+            }
+
+            LoadDanhSach();   // nạp lại bảng (code bên trong tự chọn lại đúng dòng cũ)
         }
 
-        // ====================================================================
-        // 3. CÁC NÚT THAO TÁC
-        // ====================================================================
-
-        // Lưu / cập nhật viện phí
+        /// <summary>Nút [Lưu viện phí].</summary>
         void btnLuuVienPhi_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrEmpty(maNV)) { ShowWarning("Hãy chọn hồ sơ nhập viện cần tính viện phí."); return; }
-            if (trangThaiVP == "Đã thanh toán") { ShowWarning("Viện phí đã thanh toán, không cần lưu lại."); return; }
+            if (maNV == "") { ShowWarning("Hãy chọn hồ sơ nhập viện cần tính viện phí."); return; }
+            if (trangThaiVP == DA_THANH_TOAN) { ShowWarning("Viện phí đã thanh toán, không cần lưu lại."); return; }
 
+            // try/catch: thử chạy; nếu có lỗi (mất kết nối, sai dữ liệu...) thì nhảy xuống catch
+            // để báo lỗi gọn gàng thay vì làm chương trình sập.
             try
             {
-                TinhChiPhi();
-
-                // Kiểm tra xem đã có bản ghi VIENPHI chưa
-                bool exists = DatabaseHelper.Exists("SELECT 1 FROM VIENPHI WHERE MaNhapVien = @nv", DatabaseHelper.Param("@nv", maNV));
-                if (!exists)
-                {
-                    string maVP = DatabaseHelper.NextId("VIENPHI", "MaVP", "VP");
-                    DatabaseHelper.ExecuteNonQuery(@"
-                        INSERT INTO VIENPHI(MaVP, MaNhapVien, NgayLap, SoNgay, TienPhong, TienThuoc, TienKham, TienDichVu, TongTien, BHTra, BNTra, TrangThai)
-                        VALUES(@mvp, @nv, GETDATE(), @sn, @tp, @tt, @tk, @tdv, @tong, @bh, @bn, N'Chưa thanh toán')",
-                        DatabaseHelper.Param("@mvp", maVP), DatabaseHelper.Param("@nv", maNV), DatabaseHelper.Param("@sn", soNgayNam),
-                        DatabaseHelper.Param("@tp", tienGiuong), DatabaseHelper.Param("@tt", tienThuoc), DatabaseHelper.Param("@tk", tienKham),
-                        DatabaseHelper.Param("@tdv", tienDichVu), DatabaseHelper.Param("@tong", tongTien), DatabaseHelper.Param("@bh", tongBHTra),
-                        DatabaseHelper.Param("@bn", tongBNTra));
-                }
-                else
-                {
-                    DatabaseHelper.ExecuteNonQuery(@"
-                        UPDATE VIENPHI 
-                        SET SoNgay=@sn, TienPhong=@tp, TienThuoc=@tt, TienKham=@tk, TienDichVu=@tdv, TongTien=@tong, BHTra=@bh, BNTra=@bn, NgayLap=GETDATE()
-                        WHERE MaNhapVien=@nv",
-                        DatabaseHelper.Param("@sn", soNgayNam), DatabaseHelper.Param("@tp", tienGiuong), DatabaseHelper.Param("@tt", tienThuoc),
-                        DatabaseHelper.Param("@tk", tienKham), DatabaseHelper.Param("@tdv", tienDichVu), DatabaseHelper.Param("@tong", tongTien),
-                        DatabaseHelper.Param("@bh", tongBHTra), DatabaseHelper.Param("@bn", tongBNTra), DatabaseHelper.Param("@nv", maNV));
-                }
-
-                // Cập nhật trạng thái hồ sơ thành 'Chờ thanh toán' nếu đang điều trị
-                if (trangThaiNV == "Đang điều trị")
-                {
-                    DatabaseHelper.ExecuteNonQuery("UPDATE NHAPVIEN SET TrangThai = N'Chờ thanh toán' WHERE MaNhapVien = @nv", DatabaseHelper.Param("@nv", maNV));
-                }
-
-                LoadDanhSach();
+                LuuVienPhi();
                 ShowInfo("Đã lưu bảng tổng hợp chi phí thành công.");
             }
             catch (Exception ex) { ShowError(ex); }
         }
 
-        // Thanh toán viện phí (bắt buộc trước khi xuất viện)
+        // =====================================================================
+        // 7. BƯỚC 2: THANH TOÁN
+        // =====================================================================
+
+        /// <summary>Nút [Thanh toán]: thu tiền viện phí (bắt buộc làm trước khi xuất viện).</summary>
         void btnThanhToan_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrEmpty(maNV)) { ShowWarning("Hãy chọn hồ sơ cần thanh toán."); return; }
-            if (trangThaiVP == "Đã thanh toán") { ShowInfo("Hồ sơ này đã thanh toán 100% rồi."); return; }
+            if (maNV == "") { ShowWarning("Hãy chọn hồ sơ cần thanh toán."); return; }
+            if (trangThaiVP == DA_THANH_TOAN) { ShowInfo("Hồ sơ này đã thanh toán 100% rồi."); return; }
 
-            // Nếu chưa lưu bảng kê thì lưu trước
-            btnLuuVienPhi_Click(null, null);
-
-            if (!Ask("Xác nhận thu tiền viện phí: " + Fmt.Money(tongBNTra) + " từ bệnh nhân " + tenBN + "?")) return;
+            // Hỏi xác nhận TRƯỚC khi làm bất cứ thay đổi nào. Bấm "No" thì thoát luôn.
+            // Số tiền hỏi là số của bảng kê hiện tại; LuuVienPhi() bên dưới sẽ tính lại cho chắc.
+            TinhChiPhi();
+            if (!Ask("Xác nhận thu tiền viện phí: " + Fmt.Money(tongBNTra) + " từ bệnh nhân " + tenBN + "?"))
+                return;
 
             try
             {
+                LuuVienPhi();   // đảm bảo bảng VIENPHI đã có số liệu mới nhất
+
                 DatabaseHelper.ExecuteNonQuery(@"
-                    UPDATE VIENPHI 
+                    UPDATE VIENPHI
                     SET TrangThai = N'Đã thanh toán', PhuongThucTT = N'Tiền mặt', NgayThanhToan = GETDATE()
                     WHERE MaNhapVien = @nv", DatabaseHelper.Param("@nv", maNV));
 
                 LoadDanhSach();
                 TinhChiPhi();
-                ShowInfo("Thanh toán thành công! Hiện tại bệnh nhân đã đủ điều kiện để Hoàn tất xuất viện.");
+                ShowInfo("Thanh toán thành công! Bệnh nhân đã đủ điều kiện để Hoàn tất xuất viện.");
             }
             catch (Exception ex) { ShowError(ex); }
         }
 
-        // HOÀN TẤT XUẤT VIỆN (Áp dụng BR07: Chặn nếu chưa thanh toán đủ 100%)
+        // =====================================================================
+        // 8. BƯỚC 3: HOÀN TẤT XUẤT VIỆN
+        // =====================================================================
+
+        /// <summary>
+        /// Nút [Hoàn tất xuất viện]. Quy tắc BR07: phải thanh toán đủ 100% mới được xuất viện.
+        /// Khi xuất viện thành công, 3 việc sau được làm cùng lúc trong một "Transaction":
+        ///   1) Hồ sơ nhập viện -> "Đã xuất viện" và lưu ngày ra.
+        ///   2) Giường -> "Trống".
+        ///   3) Bệnh nhân -> "Đã xuất viện".
+        /// Transaction = "được ăn cả, ngã về không": cả 3 việc cùng thành công,
+        /// hoặc nếu một việc lỗi thì cả 3 đều bị hủy => dữ liệu không bao giờ bị lệch.
+        /// </summary>
         void btnHoanTatXuatVien_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrEmpty(maNV)) { ShowWarning("Hãy chọn hồ sơ cần xuất viện."); return; }
-            if (trangThaiNV == "Đã xuất viện") { ShowInfo("Bệnh nhân này đã xuất viện rồi."); return; }
+            if (maNV == "") { ShowWarning("Hãy chọn hồ sơ cần xuất viện."); return; }
+            if (trangThaiNV == DA_XUAT_VIEN) { ShowInfo("Bệnh nhân này đã xuất viện rồi."); return; }
 
-            // ⚠️ BR07: Kiểm tra thanh toán 100%
-            if (trangThaiVP != "Đã thanh toán")
+            // Chặn nếu chưa thanh toán đủ.
+            if (trangThaiVP != DA_THANH_TOAN)
             {
-                ShowWarning("KHÔNG THỂ XUẤT VIỆN!\n\nTheo quy tắc BR07: Bệnh nhân bắt buộc phải thanh toán đủ 100% viện phí trước khi hoàn tất thủ tục xuất viện.\n\nHiện tại trạng thái là: [" + trangThaiVP + "]. Vui lòng bấm 'Thanh toán viện phí' trước!");
+                ShowWarning("KHÔNG THỂ XUẤT VIỆN!\n\n" +
+                            "Bệnh nhân phải thanh toán đủ 100% viện phí trước khi xuất viện.\n" +
+                            "Trạng thái hiện tại: [" + trangThaiVP + "]. Hãy bấm [Thanh toán] trước.");
                 return;
             }
 
-            if (!Ask("Xác nhận HOÀN TẤT XUẤT VIỆN cho bệnh nhân " + tenBN + "?\nGiường " + tenGiuong + " sẽ tự động trả về trạng thái Trống."))
+            // Ngày ra không được sớm hơn ngày vào (tránh lỗi dữ liệu).
+            if (dtpNgayRa.Value < ngayVao)
+            {
+                ShowWarning("Ngày ra viện không được trước ngày nhập viện (" + ngayVao.ToString("dd/MM/yyyy HH:mm") + ").");
+                return;
+            }
+
+            if (!Ask("Xác nhận HOÀN TẤT XUẤT VIỆN cho bệnh nhân " + tenBN + "?\n" +
+                     "Giường " + tenGiuong + " sẽ được trả về trạng thái Trống."))
                 return;
 
             try
             {
-                // Thực hiện đồng bộ trong Transaction
                 DatabaseHelper.ExecuteTransaction(
-                    // 1. Cập nhật hồ sơ nhập viện
-                    new SqlStatement(@"
-                        UPDATE NHAPVIEN 
-                        SET TrangThai = N'Đã xuất viện', NgayRaVien = @ra 
-                        WHERE MaNhapVien = @nv",
+                    // Việc 1: cập nhật hồ sơ nhập viện
+                    new SqlStatement(
+                        "UPDATE NHAPVIEN SET TrangThai = N'Đã xuất viện', NgayRaVien = @ra WHERE MaNhapVien = @nv",
                         DatabaseHelper.Param("@ra", dtpNgayRa.Value), DatabaseHelper.Param("@nv", maNV)),
 
-                    // 2. Trả giường về trạng thái trống (TrangThai = N'Trống')
-                    new SqlStatement(@"
-                        UPDATE GIUONG 
-                        SET TrangThai = N'Trống' 
-                        WHERE MaGiuong = @g",
+                    // Việc 2: trả giường về Trống
+                    new SqlStatement(
+                        "UPDATE GIUONG SET TrangThai = N'Trống' WHERE MaGiuong = @g",
                         DatabaseHelper.Param("@g", maGiuong)),
 
-                    // 3. Cập nhật trạng thái bệnh nhân
-                    new SqlStatement(@"
-                        UPDATE BENHNHAN 
-                        SET TrangThai = N'Đã xuất viện' 
-                        WHERE MaBN = @bn",
-                        DatabaseHelper.Param("@bn", maBN))
-                );
+                    // Việc 3: cập nhật trạng thái bệnh nhân
+                    new SqlStatement(
+                        "UPDATE BENHNHAN SET TrangThai = N'Đã xuất viện' WHERE MaBN = @bn",
+                        DatabaseHelper.Param("@bn", maBN)));
 
                 LoadDanhSach();
-                ShowInfo("ĐÃ HOÀN TẤT XUẤT VIỆN THÀNH CÔNG!\n- Hồ sơ nhập viện: Đã xuất viện\n- Trạng thái giường: Đã trả về Trống\n- Trạng thái bệnh nhân: Đã xuất viện");
+                ShowInfo("ĐÃ HOÀN TẤT XUẤT VIỆN!\n" +
+                         "- Hồ sơ nhập viện: Đã xuất viện\n" +
+                         "- Giường: đã trả về Trống\n" +
+                         "- Bệnh nhân: Đã xuất viện");
             }
             catch (Exception ex) { ShowError(ex); }
         }
 
+        // =====================================================================
+        // 9. XUẤT PHIẾU RA EXCEL VÀ NHẬP TỪ EXCEL
+        // =====================================================================
+
         /// <summary>
-        /// Xuất giấy xuất viện và bảng tổng hợp chi phí ra file Excel (.xlsx):
-        /// 
-        /// NGUYÊN LÝ HOẠT ĐỘNG DÀNH CHO NGƯỜI MỚI HỌC C#:
-        /// 1. TinhChiPhi() để tổng hợp đầy đủ các khoản tiền mới nhất: tiền giường, tiền thuốc, tiền dịch vụ,
-        ///    tiền bảo hiểm chi trả và số tiền người bệnh phải thanh toán.
-        /// 2. Tạo một danh sách dòng văn bản (List&lt;string&gt; L) chứa nội dung hoàn chỉnh của phiếu xuất viện:
-        ///    - Tiêu đề bệnh viện, thông tin bệnh nhân, số thẻ BHYT, khoa phòng nằm.
-        ///    - Thời gian vào viện, ra viện, tổng số ngày nằm viện.
-        ///    - Chi tiết từng khoản chi phí (giường, thuốc, dịch vụ, tổng viện phí, phần BHYT chi trả, phần BN nộp).
-        ///    - Chữ ký xác nhận của bệnh nhân và bác sĩ/kế toán viện phí.
-        /// 3. Mở SaveFileDialog để người dùng chọn thư mục và đặt tên file .xlsx cần lưu.
-        /// 4. Sử dụng hàm Export.WriteTextXlsx(...) tạo tệp Excel theo chuẩn OpenXML quốc tế.
-        /// 5. Sau khi lưu thành công, thông báo cho người dùng và tự động mở file bằng ứng dụng mặc định.
+        /// Nút [In phiếu]: tạo "Giấy xuất viện + bảng chi phí" rồi lưu ra file Excel (.xlsx).
+        /// Cách làm: ghép từng dòng chữ vào một danh sách (List), mỗi phần tử là 1 dòng của phiếu,
+        /// sau đó giao cho Export.WriteTextXlsx ghi ra file.
         /// </summary>
         void btnInPhieu_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrEmpty(maNV)) { ShowWarning("Hãy chọn hồ sơ nhập viện để xuất phiếu."); return; }
+            if (maNV == "") { ShowWarning("Hãy chọn hồ sơ nhập viện để xuất phiếu."); return; }
 
             try
             {
-                TinhChiPhi();
-                var L = new List<string>();
+                TinhChiPhi();   // lấy số liệu mới nhất
+
+                var L = new List<string>();   // mỗi L.Add(...) = thêm 1 dòng vào phiếu
                 L.Add("============================================================");
                 L.Add("            BỆNH VIỆN ĐA KHOA NỘI TRÚ");
                 L.Add("        GIẤY XUẤT VIỆN VÀ BẢNG TỔNG HỢP CHI PHÍ");
@@ -434,7 +537,7 @@ void TinhChiPhi()
                 L.Add("Ngày vào    : " + ngayVao.ToString("dd/MM/yyyy HH:mm"));
                 L.Add("Ngày ra     : " + dtpNgayRa.Value.ToString("dd/MM/yyyy HH:mm"));
                 L.Add("Số ngày nằm : " + soNgayNam + " ngày");
-                L.Add(new string('-', 60));
+                L.Add(new string('-', 60));   // new string('-', 60) = chuỗi gồm 60 dấu gạch ngang
                 L.Add("CHI TIẾT CÁC KHOẢN CHI PHÍ:");
                 L.Add("1. Tiền giường/phòng : " + Fmt.Money(tienGiuong));
                 L.Add("2. Tiền thuốc        : " + Fmt.Money(tienThuoc));
@@ -450,50 +553,40 @@ void TinhChiPhi()
                 L.Add("   Người nộp tiền                         Bác sĩ / Kế toán");
                 L.Add(" (ký, ghi rõ họ tên)                     (ký, ghi rõ họ tên)");
 
-                using (var dlg = new SaveFileDialog
+                // "using" tự đóng và giải phóng hộp thoại khi dùng xong.
+                using (var dlg = new SaveFileDialog())
                 {
-                    Filter = "Excel (*.xlsx)|*.xlsx",
-                    FileName = "PhieuXuatVien_" + maNV + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".xlsx",
-                    Title = "Chọn nơi lưu phiếu xuất viện Excel"
-                })
-                {
-                    if (dlg.ShowDialog() != DialogResult.OK) return;
+                    dlg.Filter = "Excel (*.xlsx)|*.xlsx";
+                    dlg.FileName = "PhieuXuatVien_" + maNV + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".xlsx";
+                    dlg.Title = "Chọn nơi lưu phiếu xuất viện Excel";
+
+                    if (dlg.ShowDialog() != DialogResult.OK) return;   // người dùng bấm Cancel thì thôi
+
                     Export.WriteTextXlsx(dlg.FileName, L, "PhieuXuatVien");
-                    ShowInfo("Đã xuất phiếu xuất viện ra file Excel thành công:\n" + dlg.FileName);
-                    Export.TryOpen(dlg.FileName);
+                    ShowInfo("Đã xuất phiếu ra file Excel:\n" + dlg.FileName);
+                    Export.TryOpen(dlg.FileName);   // mở file vừa lưu
                 }
             }
             catch (Exception ex) { ShowError(ex); }
         }
 
         /// <summary>
-        /// Nút Nhập Excel: Cho phép người dùng chọn tệp Excel (.xlsx) từ máy tính
-        /// và hiển thị danh sách hồ sơ lên bảng dữ liệu DataGridView.
-        /// 
-        /// NGUYÊN LÝ HOẠT ĐỘNG DÀNH CHO NGƯỜI MỚI HỌC C#:
-        /// 1. Mở OpenFileDialog thông qua hàm Export.ImportExcelDialog() để chọn file .xlsx.
-        /// 2. Đọc cấu trúc XML của sheet đầu tiên trong file nén Excel và chuyển đổi thành một đối tượng DataTable.
-        /// 3. Nếu đọc thành công (kết quả trả về khác null):
-        ///    - Gán DataTable vào dgv.DataSource để hiển thị lên lưới giao diện.
-        ///    - Hiển thị hộp thoại thông báo thành công cùng số lượng dòng dữ liệu đã nạp.
+        /// Nút [Nhập Excel]: chọn một file .xlsx từ máy tính và hiển thị nội dung lên bảng dgv.
+        /// Export.ImportExcelDialog() mở hộp thoại chọn file, đọc file và trả về DataTable (bảng dữ liệu);
+        /// nếu người dùng bấm Cancel thì trả về null (không có gì).
         /// </summary>
         void btnNhapExcel_Click(object sender, EventArgs e)
         {
             try
             {
-                var dt = Export.ImportExcelDialog();
+                DataTable dt = Export.ImportExcelDialog();
                 if (dt != null)
                 {
                     dgv.DataSource = dt;
                     ShowInfo("Đã nhập thành công " + dt.Rows.Count + " dòng từ file Excel!");
                 }
             }
-            catch (Exception ex)
-            {
-                ShowError(ex);
-            }
+            catch (Exception ex) { ShowError(ex); }
         }
-
-
     }
 }

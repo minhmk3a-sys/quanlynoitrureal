@@ -2,7 +2,7 @@ using System;
 using System.Data;
 using System.Data.SqlClient;
 
-namespace QuanLyNoiTru
+namespace QuanLyNoiTru.dotnet
 {
     /// <summary>
     /// Lớp biểu diễn một câu lệnh SQL kèm theo danh sách tham số (Parameters).
@@ -97,7 +97,7 @@ namespace QuanLyNoiTru
         public static SqlParameter Param(string name, object value)
         {
             var text = value as string;
-            if (value == null || (text != null && text.Trim().Length == 0))
+            if (value == null || text != null && text.Trim().Length == 0)
                 value = DBNull.Value;
             return new SqlParameter(name, value);
         }

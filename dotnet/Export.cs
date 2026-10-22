@@ -8,7 +8,7 @@ using System.Security;
 using System.Text;
 using System.Windows.Forms;
 
-namespace QuanLyNoiTru
+namespace QuanLyNoiTru.dotnet
 {
     /// <summary>
     /// Lớp tiện ích phục vụ Xuất file Excel (.xlsx) và Nhập file Excel (.xlsx):
@@ -273,7 +273,7 @@ namespace QuanLyNoiTru
             var header = rows[0];
             for (int i = 0; i < header.Count; i++)
             {
-                string colName = string.IsNullOrWhiteSpace(header[i]) ? ("Cột " + (i + 1)) : header[i];
+                string colName = string.IsNullOrWhiteSpace(header[i]) ? "Cột " + (i + 1) : header[i];
                 // Tránh trùng tên cột
                 while (dt.Columns.Contains(colName))
                     colName += "_";

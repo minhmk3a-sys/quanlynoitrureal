@@ -1,3 +1,4 @@
+using QuanLyNoiTru.dotnet;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -108,7 +109,7 @@ namespace QuanLyNoiTru
                         DatabaseHelper.Param("@cd2", txtChanDoan.Text.Trim()), DatabaseHelper.Param("@nv2", nv)));
                 LoadData();
                 ClearInputs();
-                ShowInfo("Đã lưu lần khám " + ma + ".");
+                ShowInfo("Đã lưu lần khám " + ".");
             }
             catch (Exception ex) { ShowError(ex); }
         }

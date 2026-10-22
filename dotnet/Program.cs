@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Forms;
 
-namespace QuanLyNoiTru
+namespace QuanLyNoiTru.dotnet
 {
     /// <summary>
     /// Lớp Program: Điểm khởi đầu (Entry Point) của toàn bộ ứng dụng Windows Forms.

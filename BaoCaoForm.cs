@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Data;
 using System.Windows.Forms;
+using QuanLyNoiTru.dotnet;
 
 namespace QuanLyNoiTru
 {
